@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
-use crate::frontend::tokens::{Token, TokenType};
+use crate::frontend::tokens::{Keywords, Token, TokenType};
 
 pub struct Scanner {
     source_code: Vec<char>,
@@ -31,6 +31,18 @@ impl Scanner {
         c
     }
 
+    fn next_while(&mut self, f: fn(&char) -> bool) {
+        let mut c = self.peek();
+        while c != '\0' {
+            if f(&c) {
+                self.next();
+            } else {
+                break;
+            }
+            c = self.peek();
+        }
+    }
+
     fn peek(&self) -> char {
         *self.source_code.get(self.cur).unwrap_or(&'\0')
     }
@@ -48,15 +60,56 @@ impl Scanner {
         }
     }
 
-    fn number(&mut self) -> Token {
-        while self.peek().is_digit(10) {
-            self.next();
+    fn string(&mut self) -> Token {
+        self.next_while(|&c| c != '"' && c != '\0');
+
+        if self.peek() == '\0' {
+            return Token {
+                token_type: TokenType::ERROR,
+                value: "Error; TODO MESSAGE".chars().collect(),
+                line: self.line,
+            };
         }
 
+        self.next();
+        let token_value = self.source_code[self.start..self.cur]
+            .iter()
+            .collect::<String>()
+            .trim_matches('"')
+            .chars()
+            .collect();
+
+        return Token {
+            token_type: TokenType::STRING,
+            value: token_value,
+            line: self.line,
+        };
+    }
+
+    fn identifier(&mut self) -> Token {
+        self.next_while(|&c| {
+            (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c == '_') || c.is_digit(10)
+        });
+
+        let token_type = self.source_code[self.start..self.cur]
+            .iter()
+            .collect::<String>()
+            .parse::<Keywords>()
+            .map(|_| TokenType::KEYWORD)
+            .unwrap_or(TokenType::IDENTIFIER);
+
+        return Token {
+            token_type: token_type,
+            value: self.source_code[self.start..self.cur].to_vec(),
+            line: self.line,
+        };
+    }
+
+    fn number(&mut self) -> Token {
+        self.next_while(|&c| c.is_digit(10));
+
         if self.peek() == '.' && self.peek_next().is_digit(10) {
-            while self.peek().is_digit(10) {
-                self.next();
-            }
+            self.next_while(|&c| c.is_digit(10));
         }
 
         return Token {
@@ -65,30 +118,15 @@ impl Scanner {
             line: self.line,
         };
     }
-
-    fn identifier(&mut self) -> Token {
-        while ((self.peek() >= 'a' && self.peek() <= 'z')
-            || (self.peek() >= 'A' && self.peek() <= 'Z')
-            || self.peek() == '_')
-            || self.peek().is_digit(10)
-        {
-            self.next();
-        }
-
-        return Token {
-            token_type: TokenType::IDENTIFIER,
-            value: self.source_code[self.start..self.cur].to_vec(),
-            line: self.line,
-        };
-    }
-
     pub fn get_tokens(&mut self) {
         loop {
             let token = self.scan_token();
             if token.token_type == TokenType::EOF {
                 break;
             }
-            println!("{:?}", token);
+            if token.token_type != TokenType::COMMENT {
+                println!("{:?}", token);
+            }
         }
     }
 
@@ -106,17 +144,72 @@ impl Scanner {
         }
 
         let c = self.next();
-        match c {
+        let token_type = match c {
+            '(' => TokenType::LEFT_PAREN,
+            ')' => TokenType::RIGHT_PAREN,
+            '{' => TokenType::LEFT_BRACE,
+            '}' => TokenType::RIGHT_BRACE,
+            ',' => TokenType::COMMA,
+            '.' => TokenType::DOT,
+            '+' => TokenType::PLUS,
+            '-' => TokenType::MINUS,
+            '*' => TokenType::STAR,
+            ';' => TokenType::SEMICOLON,
+            '/' => TokenType::SLASH,
+            '!' => {
+                if self.peek() == '=' {
+                    self.next();
+                    TokenType::INTERJ_EQ
+                } else {
+                    TokenType::INTERJ
+                }
+            }
+            '=' => {
+                if self.peek() == '=' {
+                    self.next();
+                    TokenType::EQ_EQ
+                } else {
+                    TokenType::EQ
+                }
+            }
+            '>' => {
+                if self.peek() == '=' {
+                    self.next();
+                    TokenType::GREATER_EQ
+                } else {
+                    TokenType::GREATER
+                }
+            }
+            '<' => {
+                if self.peek() == '=' {
+                    self.next();
+                    TokenType::LESS_EQ
+                } else {
+                    TokenType::LESS
+                }
+            }
+            '#' => {
+                self.next_while(|&c| c != '\n');
+                self.next();
+                TokenType::COMMENT
+            }
+            '"' => return self.string(),
             'a'..='z' | 'A'..='Z' | '_' => return self.identifier(),
             _ if c.is_digit(10) => {
                 return self.number();
             }
-            _ => {}
-        }
+            _ => {
+                return Token {
+                    token_type: TokenType::ERROR,
+                    value: "Error; TODO MESSAGE".chars().collect(),
+                    line: self.line,
+                }
+            }
+        };
 
         return Token {
-            token_type: TokenType::EOF,
-            value: vec!['E', 'O', 'F'],
+            token_type: token_type,
+            value: self.source_code[self.start..self.cur].to_vec(),
             line: self.line,
         };
     }
