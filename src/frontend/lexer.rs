@@ -125,7 +125,7 @@ impl Scanner {
                 break;
             }
             if token.token_type != TokenType::COMMENT {
-                println!("{:?}", token);
+                //println!("{:?}", token);
             }
         }
     }
