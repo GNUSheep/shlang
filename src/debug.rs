@@ -4,7 +4,14 @@ pub fn debug_instruction(chunk: &bytecode::Chunk, offset: usize) -> usize {
     println!("{:#010x}", offset);
 
     let instruction = chunk.get_instruction(offset);
-    println!("{:?}", instruction);
+    match instruction.op {
+        bytecode::OpCode::RETURN => {
+            println!("{:?}", instruction);
+        }
+        bytecode::OpCode::CONSTANT(index) => {
+            println!("{:?} => {:?}", instruction, chunk.get_value(index));
+        }
+    }
 
     offset + 1
 }
