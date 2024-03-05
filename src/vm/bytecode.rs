@@ -2,7 +2,8 @@ use crate::vm::value::{Value, ValuesArray};
 
 #[derive(Debug)]
 pub enum OpCode {
-    CONSTANT(usize),
+    CONSTANT_FLOAT(usize),
+    CONSTANT_INT(usize),
     RETURN,
 }
 
@@ -39,7 +40,7 @@ impl Chunk {
         &self.code[offset]
     }
 
-    pub fn get_value(&self, index: usize) -> &Value {
+    pub fn get_value(&self, index: usize) -> Value {
         self.values.get(index)
     }
 

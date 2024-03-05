@@ -11,11 +11,15 @@ fn run(file_path: &String) {
     scanner.get_tokens();
 
     let mut chunk = vm::bytecode::Chunk::new();
-    let costant_pos = chunk.push_value(vm::value::Value::Float(0.5));
-    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::CONSTANT(costant_pos), line: 1});
-    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::RETURN, line: 2});
     
-    debug::debug_chunk(&chunk);
+    let costant_pos = chunk.push_value(vm::value::Value::Float(1.5));
+    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::CONSTANT_FLOAT(costant_pos), line: 1});
+
+    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::RETURN, line: 2});
+
+    let mut vm = vm::vm::VM::new(chunk);
+    vm.run();
+    //debug::debug_chunk(&chunk);
 }
 
 fn main() {
