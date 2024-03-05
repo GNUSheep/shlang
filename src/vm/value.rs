@@ -14,6 +14,16 @@ impl Value {
             },
         }
     }
+
+    pub fn get_int(&self) -> i64 {
+        match self {
+            Value::Int(val) => return *val,
+            _ => {
+                println!("ERROR: Can't get int value");
+                std::process::exit(1);
+            },
+        }
+    }
 }
 
 #[derive(Debug)]

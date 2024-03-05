@@ -15,6 +15,11 @@ fn run(file_path: &String) {
     let costant_pos = chunk.push_value(vm::value::Value::Float(1.5));
     chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::CONSTANT_FLOAT(costant_pos), line: 1});
 
+    let costant_pos = chunk.push_value(vm::value::Value::Float(6.0));
+    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::CONSTANT_FLOAT(costant_pos), line: 1});
+
+    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::ADD_FLOAT, line: 1});
+
     chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::RETURN, line: 2});
 
     let mut vm = vm::vm::VM::new(chunk);
