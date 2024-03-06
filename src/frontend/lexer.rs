@@ -118,16 +118,25 @@ impl Scanner {
             line: self.line,
         };
     }
-    pub fn get_tokens(&mut self) {
+    
+    pub fn get_tokens(&mut self) -> Vec<Token> {
+        let mut tokens: Vec<Token> = vec![];
+        
         loop {
             let token = self.scan_token();
             if token.token_type == TokenType::EOF {
                 break;
             }
             if token.token_type != TokenType::COMMENT {
-                //println!("{:?}", token);
+                tokens.push(token);
             }
         }
+        tokens.push(Token {
+            token_type: TokenType::EOF,
+            value: vec!['E', 'O', 'F'],
+            line: self.line,
+        });
+        return tokens
     }
 
     pub fn scan_token(&mut self) -> Token {

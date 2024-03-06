@@ -1,6 +1,6 @@
 use crate::vm::value::{Value, ValuesArray};
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 #[allow(non_camel_case_types)]
 pub enum OpCode {
     CONSTANT_FLOAT(usize),
@@ -19,7 +19,7 @@ pub enum OpCode {
     RETURN,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Instruction {
     pub op: OpCode,
     pub line: u32,
@@ -27,8 +27,8 @@ pub struct Instruction {
 
 #[derive(Debug)]
 pub struct Chunk { 
-    code: Vec<Instruction>,
-    values: ValuesArray,
+    pub code: Vec<Instruction>,
+    pub values: ValuesArray,
 }
 
 impl Chunk {

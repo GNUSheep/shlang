@@ -1,4 +1,4 @@
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Value {
     Float(f64),
     Int(i64),
@@ -26,7 +26,7 @@ impl Value {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ValuesArray {
     values: Vec<Value>,
 }

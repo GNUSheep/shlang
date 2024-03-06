@@ -8,22 +8,12 @@ fn run(file_path: &String) {
     let source_code = frontend::lexer::get_file(file_path);
 
     let mut scanner = frontend::lexer::Scanner::init(&source_code);
-    scanner.get_tokens();
+    let tokens = scanner.get_tokens();
 
-    let mut chunk = vm::bytecode::Chunk::new();
-    
-    let costant_pos = chunk.push_value(vm::value::Value::Float(1.5));
-    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::CONSTANT_FLOAT(costant_pos), line: 1});
+    let mut compiler = vm::compiler::Compiler::new(tokens);
+    let chunk = compiler.compile();
 
-    let costant_pos = chunk.push_value(vm::value::Value::Float(6.0));
-    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::CONSTANT_FLOAT(costant_pos), line: 1});
-
-    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::ADD_FLOAT, line: 1});
-
-    chunk.push(vm::bytecode::Instruction{op: vm::bytecode::OpCode::RETURN, line: 2});
-
-    let mut vm = vm::vm::VM::new(chunk);
-    vm.run();
+    let vm = vm::vm::VM::new(chunk);
     //debug::debug_chunk(&chunk);
 }
 
