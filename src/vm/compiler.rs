@@ -125,13 +125,16 @@ impl Compiler {
 
             self.expression();
         }
-        println!("{:?}", self.chunk.code.clone());
+        let line = self.parser.peek().line;
+        self.emit_byte(OpCode::RETURN, line);
+
+        self.chunk.clone()
     }
 
     pub fn parse(&mut self, prec: Precedence) {
         let mut token_type = self.parser.next_token();
 
-        let prev_token = self.parser.prev_token();
+        let prev_token_type = self.parser.prev_token();
         if !self.parser.rules.contains_key(&prev_token) {
             // Better error
             panic!("ERROR");
@@ -146,7 +149,7 @@ impl Compiler {
         while prec <= self.parser.get_rule(&token_type).prec {
             let token_type = self.parser.next_token();
 
-            let prev_token = self.parser.prev_token();
+            let prev_token_type = self.parser.prev_token();
             let rule = self.parser.get_rule(&prev_token);
             match rule.infix {
                 Some(f) => f(self),
