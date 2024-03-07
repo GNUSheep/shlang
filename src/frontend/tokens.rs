@@ -32,7 +32,8 @@ pub enum TokenType {
     STRING,
     IDENTIFIER,
     KEYWORD,
-    NUMBER,
+    INT,
+    FLOAT,
     ERROR,
     EOF,
 }

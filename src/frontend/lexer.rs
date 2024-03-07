@@ -108,12 +108,15 @@ impl Scanner {
     fn number(&mut self) -> Token {
         self.next_while(|&c| c.is_digit(10));
 
+        let mut token_type = TokenType::INT;
         if self.peek() == '.' && self.peek_next().is_digit(10) {
+            self.next();
             self.next_while(|&c| c.is_digit(10));
+            token_type = TokenType::FLOAT;
         }
 
         return Token {
-            token_type: TokenType::NUMBER,
+            token_type: token_type,
             value: self.source_code[self.start..self.cur].to_vec(),
             line: self.line,
         };

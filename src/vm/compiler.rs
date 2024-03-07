@@ -14,11 +14,14 @@ pub struct ParseRule {
 
 pub fn init_rules() -> HashMap<TokenType, ParseRule> {
     HashMap::from([
-        (TokenType::NUMBER, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
+        (TokenType::INT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
+        (TokenType::FLOAT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
+
+        (TokenType::EOF, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
     ])
 }
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
 pub enum Precedence {
     NONE = 0,
     ASSIGNMENT,  
@@ -42,8 +45,13 @@ pub struct Parser {
 
 impl Parser {
     pub fn next(&mut self) -> &Token {
-        self.prev = self.cur;
-        
+        if self.cur != 0 {
+            if self.check_if_eof() {
+                return  &self.tokens[self.cur - 1];
+            }
+
+            self.prev += 1;
+        }
         self.cur += 1;
         if self.tokens[self.cur - 1].token_type == TokenType::ERROR {
             // better handle errors
@@ -53,13 +61,29 @@ impl Parser {
     }
 
     pub fn next_token(&mut self) -> TokenType {
-        self.prev = self.cur;
+        if self.check_if_eof() {
+            return TokenType::EOF;
+        }
+
+        if self.cur != 0 {
+            self.prev += 1;
+        }
         self.cur += 1;
         self.tokens[self.cur - 1].token_type
     }
 
     pub fn prev_token(&mut self) -> TokenType {
-        self.tokens[self.prev].token_type
+        if self.prev == 0 {
+            return self.tokens[self.prev].token_type;
+        }
+        self.tokens[self.prev - 1].token_type
+    }
+
+    pub fn check_if_eof(&mut self) -> bool {
+        if self.tokens[self.cur - 1].token_type == TokenType::EOF {
+            return true;
+        }
+        false
     }
 
     pub fn get_rule(&self, token_type: &TokenType) -> &ParseRule {
@@ -71,7 +95,10 @@ impl Parser {
     }
 
     pub fn peek_prev(&self) -> &Token {
-        &self.tokens[self.prev]
+        if self.prev == 0 {
+            return &self.tokens[self.prev];
+        }
+        &self.tokens[self.prev - 1]
     }
 }
 
@@ -97,10 +124,16 @@ impl Compiler {
         let token = self.parser.peek_prev();
 
         match token.token_type {
-            // i64
-            TokenType::NUMBER => {
+            TokenType::INT => {
                 let value: i64 = token.value.iter().collect::<String>().parse().unwrap();
                 let pos = self.chunk.push_value(Value::Int(value));
+                let line = token.line;
+
+                self.emit_byte(OpCode::CONSTANT_INT(pos), line);
+            }
+            TokenType::FLOAT => {
+                let value: f64 = token.value.iter().collect::<String>().parse().unwrap();
+                let pos = self.chunk.push_value(Value::Float(value));
                 let line = token.line;
 
                 self.emit_byte(OpCode::CONSTANT_INT(pos), line);
@@ -110,47 +143,45 @@ impl Compiler {
         }
     }
 
-    pub fn binary(&mut self) {
-    }
-
     pub fn expression(&mut self) {
         self.parse(Precedence::ASSIGNMENT);   
     }
 
     pub fn compile(&mut self) -> Chunk {
         loop {
-            if self.parser.peek().token_type == TokenType::EOF {
+            self.parser.next();
+            self.expression();
+
+            if self.parser.check_if_eof() {
                 break;
             }
-
-            self.expression();
         }
-        let line = self.parser.peek().line;
+        let line = self.parser.peek_prev().line;
         self.emit_byte(OpCode::RETURN, line);
 
         self.chunk.clone()
     }
-
+    
     pub fn parse(&mut self, prec: Precedence) {
         let mut token_type = self.parser.next_token();
 
         let prev_token_type = self.parser.prev_token();
-        if !self.parser.rules.contains_key(&prev_token) {
+        if !self.parser.rules.contains_key(&prev_token_type) {
             // Better error
             panic!("ERROR");
         }
-        let rule = self.parser.get_rule(&prev_token);
-
+        let rule = self.parser.get_rule(&prev_token_type);
+        
         match rule.prefix {
             Some(f) => f(self),
             _ => panic!("ERROR"),
         };
 
         while prec <= self.parser.get_rule(&token_type).prec {
-            let token_type = self.parser.next_token();
-
+            token_type = self.parser.next_token();
+            
             let prev_token_type = self.parser.prev_token();
-            let rule = self.parser.get_rule(&prev_token);
+            let rule = self.parser.get_rule(&prev_token_type);
             match rule.infix {
                 Some(f) => f(self),
                 _ => panic!("ERROR"),
