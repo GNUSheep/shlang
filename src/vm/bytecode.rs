@@ -59,4 +59,8 @@ impl Chunk {
     pub fn len(&self) -> usize {
         self.code.len()
     }
+
+    pub fn last(&self) -> &Instruction {
+        &self.get_instruction(self.code.len() - 1)
+    }
 } 

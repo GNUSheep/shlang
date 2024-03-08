@@ -1,11 +1,15 @@
 use std::collections::HashMap;
 
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
+
 use crate::vm::{
     value::Value,
     bytecode::{Chunk, OpCode, Instruction},
 };
 use crate::frontend::tokens::{Token, TokenType};
 
+#[derive(Debug)]
 pub struct ParseRule {
     prefix: Option<fn(&mut Compiler)>,
     infix: Option<fn(&mut Compiler)>,
@@ -17,11 +21,15 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::INT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
         (TokenType::FLOAT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
 
+        (TokenType::PLUS, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
+        (TokenType::STAR, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
+        (TokenType::SLASH, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
+
         (TokenType::EOF, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
     ])
 }
 
-#[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Debug, Clone, Copy, FromPrimitive)]
 pub enum Precedence {
     NONE = 0,
     ASSIGNMENT,  
@@ -94,6 +102,10 @@ impl Parser {
         &self.tokens[self.cur]
     }
 
+    pub fn peek_token_with_index(&self, index: usize) -> TokenType {
+        self.tokens[index].token_type
+    }
+
     pub fn peek_prev(&self) -> &Token {
         if self.prev == 0 {
             return &self.tokens[self.prev];
@@ -143,6 +155,57 @@ impl Compiler {
         }
     }
 
+    pub fn arithmetic(&mut self) {
+        let arithmetic_token = self.parser.peek_prev();
+        let arithmetic_token_type = arithmetic_token.token_type;
+        let line = arithmetic_token.line;
+
+        if !self.check_num_types(self.parser.peek_token_with_index(self.parser.cur - 1), &self.chunk.last().op) {
+            panic!("WRONG TYPES");
+        }
+        let constants_type = self.parser.peek_token_with_index(self.parser.cur - 1);
+
+        let rule = self.parser.get_rule(&arithmetic_token_type);
+
+        match Precedence::from_u32(rule.prec as u32 + 1) {
+            Some(prec) => {
+                self.parse(prec)
+            },
+            None => panic!("ERROR"),
+        };
+
+        match arithmetic_token_type {
+            TokenType::PLUS => {
+                match constants_type {
+                    TokenType::INT => self.emit_byte(OpCode::ADD_INT, line),
+                    TokenType::FLOAT => self.emit_byte(OpCode::ADD_FLOAT, line),
+                    _ => panic!("ERROR"),
+                }
+            },
+            TokenType::STAR => {
+                match constants_type {
+                    TokenType::INT => self.emit_byte(OpCode::MUL_INT, line),
+                    TokenType::FLOAT => self.emit_byte(OpCode::MUL_FLOAT, line),
+                    _ => panic!("ERROR"),
+                }
+            },
+            _ => panic!("ERROR"),
+        };
+    }
+
+    pub fn check_num_types(&self, a_type: TokenType, b_type: &OpCode) -> bool {
+        let b_token_type = match b_type {
+            OpCode::CONSTANT_INT(_) => TokenType::INT,
+            OpCode::CONSTANT_FLOAT(_) => TokenType::FLOAT,
+            _ => panic!("ERROR"),
+        };
+
+        if a_type == b_token_type {
+            return true;
+        }
+        false
+    }
+
     pub fn expression(&mut self) {
         self.parse(Precedence::ASSIGNMENT);   
     }
@@ -171,7 +234,9 @@ impl Compiler {
             panic!("ERROR");
         }
         let rule = self.parser.get_rule(&prev_token_type);
-        
+
+        println!("{:?}, {:?}, {:?}", prev_token_type, token_type, prec);
+
         match rule.prefix {
             Some(f) => f(self),
             _ => panic!("ERROR"),
