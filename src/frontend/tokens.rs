@@ -3,7 +3,7 @@
 pub struct Token {
     pub token_type: TokenType,
     pub value: Vec<char>,
-    pub line: i32,
+    pub line: u32,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq, Hash)]

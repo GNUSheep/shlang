@@ -10,16 +10,11 @@ fn run(file_path: &String) {
     let mut scanner = frontend::lexer::Scanner::init(&source_code);
     let tokens = scanner.get_tokens();
 
-    //println!("{:?}", tokens);
-
     let mut compiler = vm::compiler::Compiler::new(tokens);
     let chunk = compiler.compile();
 
-    println!("{:?}", chunk);
-
     let mut vm = vm::vm::VM::new(chunk);
     vm.run();
-    //debug::debug_chunk(&chunk);
 }
 
 fn main() {

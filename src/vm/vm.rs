@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use crate::vm::{
     bytecode::{Chunk, OpCode, Instruction},
     value::Value,
@@ -7,7 +5,7 @@ use crate::vm::{
 
 pub struct VM {
     chunk: Chunk,
-    stack: VecDeque<Value>,
+    stack: Vec<Value>,
     ip: usize,
 }
 
@@ -15,7 +13,7 @@ impl VM {
     pub fn new(chunk: Chunk) -> Self {
         Self {
             chunk: chunk,
-            stack: VecDeque::new(),
+            stack: vec![],
             ip: 0,
         }
     }
@@ -30,54 +28,54 @@ impl VM {
             let instruction = self.get_instruction();
             match instruction.op { 
                 OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) => {
-                    self.stack.push_back(self.chunk.get_value(index));
+                    self.stack.push(self.chunk.get_value(index));
 
                 },
 
                 OpCode::ADD_FLOAT => {
-                    let a = self.stack.pop_front().unwrap().get_float();
-                    let b = self.stack.pop_front().unwrap().get_float();
-                    self.stack.push_back(Value::Float(a+b));
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+                    self.stack.push(Value::Float(b+a));
                 },
                 OpCode::SUB_FLOAT => {
-                    let a = self.stack.pop_front().unwrap().get_float();
-                    let b = self.stack.pop_front().unwrap().get_float();
-                    self.stack.push_back(Value::Float(a-b));
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+                    self.stack.push(Value::Float(b-a));
                 },
                 OpCode::MUL_FLOAT => {
-                    let a = self.stack.pop_front().unwrap().get_float();
-                    let b = self.stack.pop_front().unwrap().get_float();
-                    self.stack.push_back(Value::Float(a*b));
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+                    self.stack.push(Value::Float(b*a));
                 },
                 OpCode::DIV_FLOAT => {
-                    let a = self.stack.pop_front().unwrap().get_float();
-                    let b = self.stack.pop_front().unwrap().get_float();
-                    self.stack.push_back(Value::Float(a/b));
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+                    self.stack.push(Value::Float(b/a));
                 },
 
                 OpCode::ADD_INT => {
-                    let a = self.stack.pop_front().unwrap().get_int();
-                    let b = self.stack.pop_front().unwrap().get_int();
-                    self.stack.push_back(Value::Int(a+b));
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+                    self.stack.push(Value::Int(b+a));
                 },
                 OpCode::SUB_INT => {
-                    let a = self.stack.pop_front().unwrap().get_int();
-                    let b = self.stack.pop_front().unwrap().get_int();
-                    self.stack.push_back(Value::Int(a-b));
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+                    self.stack.push(Value::Int(b-a));
                 },
                 OpCode::MUL_INT => {
-                    let a = self.stack.pop_front().unwrap().get_int();
-                    let b = self.stack.pop_front().unwrap().get_int();
-                    self.stack.push_back(Value::Int(a*b));
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+                    self.stack.push(Value::Int(b*a));
                 },
                 OpCode::DIV_INT => {
-                    let a = self.stack.pop_front().unwrap().get_int();
-                    let b = self.stack.pop_front().unwrap().get_int();
-                    self.stack.push_back(Value::Int(a/b));
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+                    self.stack.push(Value::Int(b/a));
                 },
 
                 OpCode::RETURN => {
-                    match self.stack.pop_back() {
+                    match self.stack.pop() {
                         Some(constant) => {
                             match constant {
                                 Value::Float(val) => println!("Float: {}", val),

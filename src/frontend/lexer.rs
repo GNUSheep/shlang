@@ -7,7 +7,7 @@ pub struct Scanner {
     source_code: Vec<char>,
     start: usize,
     cur: usize,
-    line: i32,
+    line: u32,
 }
 
 impl Scanner {
