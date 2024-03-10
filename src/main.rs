@@ -2,6 +2,7 @@ use std::env;
 
 mod frontend;
 mod vm;
+mod compiler;
 mod debug;
 
 fn run(file_path: &String) {
@@ -10,7 +11,7 @@ fn run(file_path: &String) {
     let mut scanner = frontend::lexer::Scanner::init(&source_code);
     let tokens = scanner.get_tokens();
 
-    let mut compiler = vm::compiler::Compiler::new(tokens);
+    let mut compiler = compiler::compiler::Compiler::new(tokens);
     let chunk = compiler.compile();
 
     let mut vm = vm::vm::VM::new(chunk);

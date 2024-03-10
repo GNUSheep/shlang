@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 
-use crate::frontend::tokens::{Keywords, Token, TokenType};
+use crate::{compiler::errors::error_message, frontend::tokens::{Keywords, Token, TokenType}};
 
 pub struct Scanner {
     source_code: Vec<char>,
@@ -66,7 +66,7 @@ impl Scanner {
         if self.peek() == '\0' {
             return Token {
                 token_type: TokenType::ERROR,
-                value: "Error; TODO MESSAGE".chars().collect(),
+                value: format!("Missing \" at the end of string {}:{}", self.line, self.cur + 1).chars().collect(),
                 line: self.line,
             };
         }
@@ -213,7 +213,7 @@ impl Scanner {
             _ => {
                 return Token {
                     token_type: TokenType::ERROR,
-                    value: "Error; TODO MESSAGE".chars().collect(),
+                    value: format!("Invalid char ({}) {}:{}", c, self.line, self.cur + 1).chars().collect(),
                     line: self.line,
                 }
             }
@@ -230,13 +230,19 @@ impl Scanner {
 pub fn get_file(file_path: &String) -> String {
     let mut file = match File::open(file_path) {
         Ok(file) => file,
-        Err(e) => panic!("Error while opening a file: {:?}", e),
+        Err(e) => {
+            error_message("FILE OPEN", format!("Error while trying to open a file: {:?}", e));
+            std::process::exit(1);
+        },
     };
 
     let mut buffer: String = String::new();
     match file.read_to_string(&mut buffer) {
         Ok(_) => {}
-        Err(e) => panic!("Error while reading a file: {:?}", e),
+        Err(e) => {
+            error_message("FILE OPEN", format!("Error while trying to read a file: {:?}", e));
+            std::process::exit(1);
+        }
     };
 
     buffer

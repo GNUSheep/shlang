@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
 use crate::vm::{
-    value::Value,
+    value::{Value, Convert},
     bytecode::{Chunk, OpCode, Instruction},
 };
 use crate::frontend::tokens::{Token, TokenType};
+
+use super::errors;
 
 #[derive(Debug)]
 pub struct ParseRule {
@@ -56,7 +58,11 @@ impl From<u32> for Precedence {
             8 => Precedence::UNARY,
             9 => Precedence::CALL,
             10 => Precedence::PRIMARY,
-            _ => panic!("Error"),
+            _ => {
+                errors::conversion_error("u32", "Precedence");
+                std::process::exit(1);
+            }
+            
         }
     }
 }
@@ -76,7 +82,7 @@ impl Parser {
         self.index += 1;
 
         if self.cur.token_type == TokenType::ERROR {
-            panic!("ERROR");
+            errors::token_error(self.cur.clone());
         }
     }
 
@@ -114,29 +120,52 @@ impl Compiler {
     pub fn number(&mut self) {
         match self.parser.prev.token_type {
             TokenType::INT => {
-                let value: i64 = self.parser.prev.value.iter().collect::<String>().parse().unwrap();
+                let value: i64 = match self.parser.prev.value.iter().collect::<String>().parse() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        errors::conversion_error("Vec<char>", "i64");
+                        std::process::exit(1);
+                    },
+                };
+
                 let pos = self.chunk.push_value(Value::Int(value));
                 let line = self.parser.prev.line;
 
                 self.emit_byte(OpCode::CONSTANT_INT(pos), line);
             }
             TokenType::FLOAT => {
-                let value: f64 = self.parser.prev.value.iter().collect::<String>().parse().unwrap();
+                let value: f64 = match self.parser.prev.value.iter().collect::<String>().parse() {
+                    Ok(v) => v,
+                    Err(_) => {
+                        errors::conversion_error("Vec<char>", "f64");
+                        std::process::exit(1);
+                    },
+                };
+
                 let pos = self.chunk.push_value(Value::Float(value));
                 let line = self.parser.prev.line;
 
                 self.emit_byte(OpCode::CONSTANT_FLOAT(pos), line);
             }
             // Better handling errors
-            _ => panic!("ERROR"),
+            _ => {
+                errors::error_unexpected(self.parser.prev.clone(), "number function");
+                std::process::exit(1);
+            },
         }
     }
 
     pub fn arithmetic(&mut self) {
         let arithmetic_token = self.parser.prev.clone();
 
-        if !self.check_num_types(self.parser.cur.token_type, &self.chunk.get_value(self.chunk.values.len() - 1)) {
-            panic!("WRONG TYPES");
+        if !self.check_num_types(self.parser.cur.token_type, self.chunk.get_value(self.chunk.values.len() - 1).convert()) {
+            errors::error_message("COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
+                self.chunk.get_value(self.chunk.values.len() - 1).convert(),
+                arithmetic_token.value.iter().collect::<String>(),
+                self.parser.cur.token_type,
+                arithmetic_token.line,
+            ));
+            std::process::exit(1);
         }
         let constants_type = self.parser.cur.token_type;
 
@@ -149,41 +178,51 @@ impl Compiler {
                 match constants_type {
                     TokenType::INT => self.emit_byte(OpCode::ADD_INT, arithmetic_token.line),
                     TokenType::FLOAT => self.emit_byte(OpCode::ADD_FLOAT, arithmetic_token.line),
-                    _ => panic!("ERROR"),
+                    _ => {
+                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                        std::process::exit(1);
+                    }
                 }
             },
             TokenType::MINUS => {
                 match constants_type {
                     TokenType::INT => self.emit_byte(OpCode::SUB_INT, arithmetic_token.line),
                     TokenType::FLOAT => self.emit_byte(OpCode::SUB_FLOAT, arithmetic_token.line),
-                    _ => panic!("ERROR"),
+                    _ => {
+                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                        std::process::exit(1);
+                    }
                 }
             },
             TokenType::STAR => {
                 match constants_type {
                     TokenType::INT => self.emit_byte(OpCode::MUL_INT, arithmetic_token.line),
                     TokenType::FLOAT => self.emit_byte(OpCode::MUL_FLOAT, arithmetic_token.line),
-                    _ => panic!("ERROR"),
+                    _ => {
+                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                        std::process::exit(1);
+                    }
                 }
             },
             TokenType::SLASH => {
                 match constants_type {
                     TokenType::INT => self.emit_byte(OpCode::DIV_INT, arithmetic_token.line),
                     TokenType::FLOAT => self.emit_byte(OpCode::DIV_FLOAT, arithmetic_token.line),
-                    _ => panic!("ERROR"),
+                    _ => {
+                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                        std::process::exit(1);
+                    }
                 }
             },
-            _ => panic!("ERROR"),
+            _ => {
+                errors::error_unexpected(arithmetic_token, "arithmetic function");
+                std::process::exit(1);
+            }
         };
     }
 
-    pub fn check_num_types(&self, a_type: TokenType, b_type: &Value) -> bool {
-        let b_token_type = match b_type {
-            Value::Int(_) => TokenType::INT,
-            Value::Float(_) => TokenType::FLOAT,
-        };
-
-        if a_type == b_token_type {
+    pub fn check_num_types(&self, a_type: TokenType, b_type: TokenType) -> bool {
+        if a_type == b_type {
             return true;
         }
         false
@@ -206,23 +245,33 @@ impl Compiler {
         self.parser.advance();
 
         if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-            // Better error
-            panic!("ERROR");
+            errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+            std::process::exit(1);
         }
         let rule = self.parser.get_rule(&self.parser.prev.token_type);
 
         match rule.prefix {
             Some(f) => f(self),
-            _ => panic!("ERROR"),
+            _ => {
+                errors::error_message("PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+                std::process::exit(1);
+            },
         };
 
         while prec <= self.parser.get_rule(&self.parser.cur.token_type).prec {
             self.parser.advance();
 
+            if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
+                errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+                std::process::exit(1);
+            }
             let rule = self.parser.get_rule(&self.parser.prev.token_type);
             match rule.infix {
                 Some(f) => f(self),
-                _ => panic!("ERROR"),
+                _ => {
+                    errors::error_message("PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+                    std::process::exit(1);
+                },
             }
         }
     }

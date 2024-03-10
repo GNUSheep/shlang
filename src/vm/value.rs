@@ -1,3 +1,7 @@
+use crate::frontend::tokens::TokenType;
+
+use crate::compiler::errors;
+
 #[derive(Debug, Clone, Copy)]
 pub enum Value {
     Float(f64),
@@ -9,7 +13,7 @@ impl Value {
         match self {
             Value::Float(val) => return *val,
             _ => {
-                println!("ERROR: Can't get float value");
+                errors::conversion_error("Enum Value<_>", "f64");
                 std::process::exit(1);
             },
         }
@@ -19,9 +23,22 @@ impl Value {
         match self {
             Value::Int(val) => return *val,
             _ => {
-                println!("ERROR: Can't get int value");
+                errors::conversion_error("Enum Value<_>", "i64");
                 std::process::exit(1);
             },
+        }
+    }
+}
+
+pub trait Convert {
+    fn convert(&self) -> TokenType;
+}
+
+impl Convert for Value {
+    fn convert(&self) -> TokenType {
+        match *self {
+            Value::Float(_) => TokenType::FLOAT,
+            Value::Int(_) => TokenType::INT,
         }
     }
 }
