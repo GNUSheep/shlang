@@ -1,5 +1,7 @@
+#[cfg(feature = "debug_chunk")]
 use crate::vm::bytecode;
 
+#[cfg(feature = "debug_chunk")]
 pub fn debug_instruction(chunk: &bytecode::Chunk, offset: usize) -> usize {
     println!("{:#010x}", offset);
 
@@ -28,6 +30,7 @@ pub fn debug_instruction(chunk: &bytecode::Chunk, offset: usize) -> usize {
     offset + 1
 }
 
+#[cfg(feature = "debug_chunk")]
 pub fn debug_chunk(chunk: &bytecode::Chunk) {
     let op_len = chunk.len();
     let mut offset: usize = 0;

@@ -86,12 +86,12 @@ impl Parser {
         }
     }
 
-    pub fn check_if_eof(&mut self) -> bool {
-        if self.cur.token_type == TokenType::EOF {
-            return true;
-        }
-        false
-    }
+    //pub fn check_if_eof(&mut self) -> bool {
+    //    if self.cur.token_type == TokenType::EOF {
+    //        return true;
+    //    }
+    //    false
+    //}
 
     pub fn get_rule(&self, token_type: &TokenType) -> &ParseRule {
         &self.rules[token_type]
@@ -260,7 +260,11 @@ impl Compiler {
         self.parser.advance();
 
         if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-            errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+            errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:", 
+                self.parser.prev.token_type, 
+                self.parser.prev.value.iter().collect::<String>(), 
+                self.parser.prev.line,
+            ));
             std::process::exit(1);
         }
         let rule = self.parser.get_rule(&self.parser.prev.token_type);
@@ -277,7 +281,11 @@ impl Compiler {
             self.parser.advance();
 
             if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-                errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+                errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:", 
+                    self.parser.prev.token_type, 
+                    self.parser.prev.value.iter().collect::<String>(), 
+                    self.parser.prev.line,
+                ));
                 std::process::exit(1);
             }
             let rule = self.parser.get_rule(&self.parser.prev.token_type);
