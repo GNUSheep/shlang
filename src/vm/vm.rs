@@ -74,12 +74,18 @@ impl VM {
                     self.stack.push(Value::Int(b/a));
                 },
 
+                OpCode::NEGATE => {
+                    let a = self.stack.pop().unwrap();
+                    self.stack.push(-a);
+                },
+
                 OpCode::RETURN => {
                     match self.stack.pop() {
                         Some(constant) => {
                             match constant {
                                 Value::Float(val) => println!("Float: {}", val),
                                 Value::Int(val) => println!("Int: {}", val),
+                                _ => {},
                             }
                         }
                         None => {},

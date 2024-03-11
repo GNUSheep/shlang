@@ -15,6 +15,8 @@ pub enum OpCode {
     SUB_INT,
     MUL_INT,
     DIV_INT,
+
+    NEGATE,
     
     RETURN,
 }

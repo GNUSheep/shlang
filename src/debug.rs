@@ -20,6 +20,9 @@ pub fn debug_instruction(chunk: &bytecode::Chunk, offset: usize) -> usize {
             bytecode::OpCode::ADD_INT | bytecode::OpCode::SUB_INT | bytecode::OpCode::MUL_INT | bytecode::OpCode::DIV_INT => {
                 println!("{:?}", instruction);
             }
+            bytecode::OpCode::NEGATE => {
+                println!("{:?}", instruction);
+            }
     }
 
     offset + 1

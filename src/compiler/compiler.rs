@@ -21,7 +21,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::FLOAT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
 
         (TokenType::PLUS, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
-        (TokenType::MINUS, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
+        (TokenType::MINUS, ParseRule { prefix: Some(Compiler::negation), infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
         (TokenType::STAR, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
         (TokenType::SLASH, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
 
@@ -117,6 +117,20 @@ impl Compiler {
         }
     }
 
+    pub fn negation(&mut self) {
+        let negation_token = self.parser.prev.clone();
+
+        self.parse(Precedence::UNARY);
+
+        match negation_token.token_type {
+            TokenType::MINUS => self.emit_byte(OpCode::NEGATE, negation_token.line),
+            _ => {
+                errors::error_unexpected(self.parser.prev.clone(), "negation function");
+                std::process::exit(1);
+            }
+        }
+    }
+
     pub fn number(&mut self) {
         match self.parser.prev.token_type {
             TokenType::INT => {
@@ -157,21 +171,22 @@ impl Compiler {
 
     pub fn arithmetic(&mut self) {
         let arithmetic_token = self.parser.prev.clone();
+        let left_side = self.chunk.get_value(self.chunk.values.len() - 1).convert();
+        
+        let rule = self.parser.get_rule(&arithmetic_token.token_type);
 
-        if !self.check_num_types(self.parser.cur.token_type, self.chunk.get_value(self.chunk.values.len() - 1).convert()) {
+        self.parse((rule.prec as u32 + 1).into());
+
+        if !self.check_num_types(self.parser.prev.token_type, left_side) {
             errors::error_message("COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
-                self.chunk.get_value(self.chunk.values.len() - 1).convert(),
+                left_side,
                 arithmetic_token.value.iter().collect::<String>(),
-                self.parser.cur.token_type,
+                self.parser.prev.token_type,
                 arithmetic_token.line,
             ));
             std::process::exit(1);
         }
-        let constants_type = self.parser.cur.token_type;
-
-        let rule = self.parser.get_rule(&arithmetic_token.token_type);
-
-        self.parse((rule.prec as u32 + 1).into());
+        let constants_type = self.parser.prev.token_type;
 
         match arithmetic_token.token_type {
             TokenType::PLUS => {

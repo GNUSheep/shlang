@@ -2,10 +2,14 @@ use crate::frontend::tokens::TokenType;
 
 use crate::compiler::errors;
 
-#[derive(Debug, Clone, Copy)]
+pub use std::ops::Neg;
+
+#[derive(Debug, Clone)]
 pub enum Value {
     Float(f64),
     Int(i64),
+    Bool(bool),
+    String(String),
 }
 
 impl Value {
@@ -30,6 +34,30 @@ impl Value {
     }
 }
 
+impl Neg for Value {
+    type Output = Self;
+
+    fn neg(self) -> Self {
+        let value: Value; 
+        match self {
+            Value::Float(_) => {
+                let val = self.get_float();
+                value = Value::Float(-val);
+            }
+            Value::Int(_) => {
+                let val = self.get_int();
+                value = Value::Int(-val);
+            }
+            _ => {
+                errors::conversion_error("Enum Value<_>", "NEG Enum Value<_>");
+                std::process::exit(1);
+            },
+        };
+
+        value
+    }
+}
+
 pub trait Convert {
     fn convert(&self) -> TokenType;
 }
@@ -39,6 +67,10 @@ impl Convert for Value {
         match *self {
             Value::Float(_) => TokenType::FLOAT,
             Value::Int(_) => TokenType::INT,
+            _ => {
+                errors::conversion_error("Enum Value<_>", "TokenType");
+                std::process::exit(1);
+            },
         }
     }
 }
@@ -60,7 +92,7 @@ impl ValuesArray {
     }
 
     pub fn get(&self, index: usize) -> Value {
-        self.values[index]
+        self.values[index].clone()
     }
 
     pub fn len(&self) -> usize {
