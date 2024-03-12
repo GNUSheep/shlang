@@ -16,6 +16,9 @@ pub fn debug_instruction(chunk: &bytecode::Chunk, offset: usize) -> usize {
             bytecode::OpCode::CONSTANT_INT(index) => {
                 println!("{:?} => {:?}", instruction, chunk.get_value(index));
             }
+            bytecode::OpCode::CONSTANT_BOOL(index) => {
+                println!("{:?} => {:?}", instruction, chunk.get_value(index));
+            }
             bytecode::OpCode::ADD_FLOAT | bytecode::OpCode::SUB_FLOAT | bytecode::OpCode::MUL_FLOAT | bytecode::OpCode::DIV_FLOAT => {
                 println!("{:?}", instruction);
             }

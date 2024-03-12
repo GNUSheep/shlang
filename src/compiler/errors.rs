@@ -1,4 +1,4 @@
-use crate::frontend::tokens::{Token, TokenType};
+use crate::frontend::tokens::{Token, TokenType, Keywords};
 
 pub fn error_message(title: &str, msg: String) {
     println!("==== {} ====", title);
@@ -20,4 +20,8 @@ pub fn error_unexpected(token: Token, place: &str) {
 
 pub fn error_unexpected_token_type(token_type: TokenType, line: u32, place: &str) {
     error_message("COMPILER ERROR", format!("Unexpected type ({:?}) in {} {}:", token_type, place.to_ascii_uppercase(), line));
+}
+
+pub fn error_unexpected_keyword(keyword: Keywords, line: u32, place: &str) {
+    error_message("COMPILER ERROR", format!("Unexpected keyword ({:?}) in {} {}:", keyword, place.to_ascii_uppercase(), line));
 }

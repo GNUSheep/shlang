@@ -5,7 +5,8 @@ use crate::vm::value::{Value, ValuesArray};
 pub enum OpCode {
     CONSTANT_FLOAT(usize),
     CONSTANT_INT(usize),
-    
+    CONSTANT_BOOL(usize),
+
     ADD_FLOAT,
     SUB_FLOAT,
     MUL_FLOAT,

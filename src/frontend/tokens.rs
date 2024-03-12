@@ -31,17 +31,19 @@ pub enum TokenType {
     COMMENT,
     STRING,
     IDENTIFIER,
-    KEYWORD,
+    KEYWORD(Keywords),
     INT,
     FLOAT,
     ERROR,
     EOF,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum Keywords {
     VAR,
+    TRUE,
+    FALSE,
 }
 
 impl std::str::FromStr for Keywords {
@@ -50,6 +52,8 @@ impl std::str::FromStr for Keywords {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "var" => Ok(Keywords::VAR),
+            "true" => Ok(Keywords::TRUE),
+            "false" => Ok(Keywords::FALSE),
             _ => Err(()),
         }
     }

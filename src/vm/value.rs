@@ -40,13 +40,14 @@ impl Neg for Value {
     fn neg(self) -> Self {
         let value: Value; 
         match self {
-            Value::Float(_) => {
-                let val = self.get_float();
+            Value::Float(val) => {
                 value = Value::Float(-val);
             }
-            Value::Int(_) => {
-                let val = self.get_int();
+            Value::Int(val) => {
                 value = Value::Int(-val);
+            }
+            Value::Bool(val) => {
+                value = Value::Bool(!val);
             }
             _ => {
                 errors::conversion_error("Enum Value<_>", "NEG Enum Value<_>");

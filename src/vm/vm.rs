@@ -27,7 +27,7 @@ impl VM {
         loop {
             let instruction = self.get_instruction();
             match instruction.op { 
-                OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) => {
+                OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) | OpCode::CONSTANT_BOOL(index) => {
                     self.stack.push(self.chunk.get_value(index));
 
                 },
@@ -80,16 +80,7 @@ impl VM {
                 },
 
                 OpCode::RETURN => {
-                    match self.stack.pop() {
-                        Some(constant) => {
-                            match constant {
-                                Value::Float(val) => println!("Float: {}", val),
-                                Value::Int(val) => println!("Int: {}", val),
-                                _ => {},
-                            }
-                        }
-                        None => {},
-                    }
+                    println!("Stack: {:?}", self.stack);
                     
                     break
                 },

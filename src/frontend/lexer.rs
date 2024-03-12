@@ -95,7 +95,7 @@ impl Scanner {
             .iter()
             .collect::<String>()
             .parse::<Keywords>()
-            .map(|_| TokenType::KEYWORD)
+            .map(|keyword| TokenType::KEYWORD(keyword))
             .unwrap_or(TokenType::IDENTIFIER);
 
         return Token {

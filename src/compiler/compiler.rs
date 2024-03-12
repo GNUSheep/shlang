@@ -4,7 +4,7 @@ use crate::vm::{
     value::{Value, Convert},
     bytecode::{Chunk, OpCode, Instruction},
 };
-use crate::frontend::tokens::{Token, TokenType};
+use crate::frontend::tokens::{Token, TokenType, Keywords};
 
 use super::errors;
 
@@ -19,6 +19,11 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
     HashMap::from([
         (TokenType::INT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
         (TokenType::FLOAT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
+        
+        (TokenType::KEYWORD(Keywords::TRUE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
+        (TokenType::KEYWORD(Keywords::FALSE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
+
+        (TokenType::INTERJ, ParseRule { prefix: Some(Compiler::negation), infix: None, prec: Precedence::NONE }),
 
         (TokenType::PLUS, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
         (TokenType::MINUS, ParseRule { prefix: Some(Compiler::negation), infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
@@ -124,11 +129,41 @@ impl Compiler {
 
         match negation_token.token_type {
             TokenType::MINUS => self.emit_byte(OpCode::NEGATE, negation_token.line),
+            TokenType::INTERJ => self.emit_byte(OpCode::NEGATE, negation_token.line),
             _ => {
                 errors::error_unexpected(self.parser.prev.clone(), "negation function");
                 std::process::exit(1);
             }
         }
+    }
+
+    pub fn bool(&mut self) {
+        match self.parser.prev.token_type {
+            TokenType::KEYWORD(val) => {
+                match val {
+                    Keywords::TRUE => {
+                        let pos = self.chunk.push_value(Value::Bool(true));
+                        let line = self.parser.prev.line;
+
+                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), line);
+                    },
+                    Keywords::FALSE => {
+                        let pos = self.chunk.push_value(Value::Bool(false));
+                        let line = self.parser.prev.line;
+
+                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), line);
+                    }, 
+                    _ => {
+                        errors::error_unexpected_keyword(val, self.parser.prev.line, "bool function");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            _ => {
+                errors::error_unexpected(self.parser.prev.clone(), "bool function");
+                std::process::exit(1);
+            }
+        };
     }
 
     pub fn number(&mut self) {
