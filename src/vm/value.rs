@@ -32,6 +32,16 @@ impl Value {
             },
         }
     }
+
+    pub fn get_bool(&self) -> bool {
+        match self {
+            Value::Bool(val) => return *val,
+            _ => {
+                errors::conversion_error("Enum Value<_>", "i64");
+                std::process::exit(1);
+            },
+        }
+    }
 }
 
 impl Neg for Value {
@@ -68,6 +78,7 @@ impl Convert for Value {
         match *self {
             Value::Float(_) => TokenType::FLOAT,
             Value::Int(_) => TokenType::INT,
+            Value::Bool(_) => TokenType::BOOL,
             _ => {
                 errors::conversion_error("Enum Value<_>", "TokenType");
                 std::process::exit(1);

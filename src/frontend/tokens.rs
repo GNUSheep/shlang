@@ -34,6 +34,7 @@ pub enum TokenType {
     KEYWORD(Keywords),
     INT,
     FLOAT,
+    BOOL,
     ERROR,
     EOF,
 }

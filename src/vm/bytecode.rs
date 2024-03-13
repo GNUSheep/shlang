@@ -3,22 +3,36 @@ use crate::vm::value::{Value, ValuesArray};
 #[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum OpCode {
-    CONSTANT_FLOAT(usize),
-    CONSTANT_INT(usize),
     CONSTANT_BOOL(usize),
+    EQ_BOOL,
+    NEG_EQ_BOOL,
 
+    CONSTANT_FLOAT(usize),
     ADD_FLOAT,
     SUB_FLOAT,
     MUL_FLOAT,
     DIV_FLOAT,
-
+    EQ_FLOAT,
+    NEG_EQ_FLOAT,
+    GREATER_FLOAT,
+    EQ_GREATER_FLOAT,
+    LESS_FLOAT,
+    EQ_LESS_FLOAT,
+    
+    CONSTANT_INT(usize),
     ADD_INT,
     SUB_INT,
     MUL_INT,
     DIV_INT,
+    EQ_INT,
+    NEG_EQ_INT,
+    GREATER_INT,
+    EQ_GREATER_INT,
+    LESS_INT,
+    EQ_LESS_INT,
 
     NEGATE,
-    
+
     RETURN,
 }
 

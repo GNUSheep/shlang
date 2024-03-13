@@ -52,7 +52,43 @@ impl VM {
                     let b = self.stack.pop().unwrap().get_float();
                     self.stack.push(Value::Float(b/a));
                 },
+                OpCode::EQ_FLOAT => {
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
 
+                    self.stack.push(Value::Bool(a==b));
+                }
+                OpCode::NEG_EQ_FLOAT => {
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+
+                    self.stack.push(Value::Bool(a!=b));
+                }
+                OpCode::GREATER_FLOAT => {
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+
+                    self.stack.push(Value::Bool(b>a));
+                }
+                OpCode::EQ_GREATER_FLOAT => {
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+
+                    self.stack.push(Value::Bool(b>=a));
+                }
+                OpCode::LESS_FLOAT => {
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+
+                    self.stack.push(Value::Bool(b<a));
+                }
+                OpCode::EQ_LESS_FLOAT => {
+                    let a = self.stack.pop().unwrap().get_float();
+                    let b = self.stack.pop().unwrap().get_float();
+
+                    self.stack.push(Value::Bool(b<=a));
+                }
+                
                 OpCode::ADD_INT => {
                     let a = self.stack.pop().unwrap().get_int();
                     let b = self.stack.pop().unwrap().get_int();
@@ -73,11 +109,60 @@ impl VM {
                     let b = self.stack.pop().unwrap().get_int();
                     self.stack.push(Value::Int(b/a));
                 },
+                OpCode::EQ_INT => {
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+
+                    self.stack.push(Value::Bool(a==b));
+                }
+                OpCode::NEG_EQ_INT => {
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+
+                    self.stack.push(Value::Bool(a!=b));
+                }
+                OpCode::GREATER_INT => {
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+
+                    self.stack.push(Value::Bool(b>a));
+                }
+                OpCode::EQ_GREATER_INT => {
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+
+                    self.stack.push(Value::Bool(b>=a));
+                }
+                OpCode::LESS_INT => {
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+
+                    self.stack.push(Value::Bool(b<a));
+                }
+                OpCode::EQ_LESS_INT => {
+                    let a = self.stack.pop().unwrap().get_int();
+                    let b = self.stack.pop().unwrap().get_int();
+
+                    self.stack.push(Value::Bool(b<=a));
+                }
 
                 OpCode::NEGATE => {
                     let a = self.stack.pop().unwrap();
                     self.stack.push(-a);
                 },
+
+                OpCode::EQ_BOOL => {
+                    let a = self.stack.pop().unwrap().get_bool();
+                    let b = self.stack.pop().unwrap().get_bool();
+
+                    self.stack.push(Value::Bool(a==b));
+                }
+                OpCode::NEG_EQ_BOOL => {
+                    let a = self.stack.pop().unwrap().get_bool();
+                    let b = self.stack.pop().unwrap().get_bool();
+
+                    self.stack.push(Value::Bool(a!=b));
+                }
 
                 OpCode::RETURN => {
                     println!("Stack: {:?}", self.stack);

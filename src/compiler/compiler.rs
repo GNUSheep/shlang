@@ -25,6 +25,13 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
 
         (TokenType::INTERJ, ParseRule { prefix: Some(Compiler::negation), infix: None, prec: Precedence::NONE }),
 
+        (TokenType::INTERJ_EQ, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::EQUALITY }),
+        (TokenType::EQ_EQ, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::EQUALITY }),
+        (TokenType::GREATER, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
+        (TokenType::GREATER_EQ, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
+        (TokenType::LESS, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
+        (TokenType::LESS_EQ, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
+
         (TokenType::PLUS, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
         (TokenType::MINUS, ParseRule { prefix: Some(Compiler::negation), infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
         (TokenType::STAR, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
@@ -137,6 +144,62 @@ impl Compiler {
         }
     }
 
+    pub fn logic_operator(&mut self) {
+        let logic_token = self.parser.prev.clone();
+        let left_side = self.chunk.get_value(self.chunk.values.len() - 1).convert();
+        
+        let rule = self.parser.get_rule(&logic_token.token_type);
+
+        self.parse((rule.prec as u32 + 1).into());
+
+        let constants_type = self.check_static_types(&self.parser.prev, left_side, &logic_token);
+
+        match constants_type {
+            TokenType::INT => {
+                match logic_token.token_type {
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_INT, logic_token.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_INT, logic_token.line),
+                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_INT, logic_token.line),
+                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_INT, logic_token.line),
+                    TokenType::LESS => self.emit_byte(OpCode::LESS_INT, logic_token.line),
+                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_INT, logic_token.line),
+                    _ => {
+                        errors::error_unexpected(logic_token, "logic operator function");
+                        std::process::exit(1);
+                    }
+                };
+            },
+            TokenType::FLOAT => {
+                match logic_token.token_type {
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_FLOAT, logic_token.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_FLOAT, logic_token.line),
+                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_FLOAT, logic_token.line),
+                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_FLOAT, logic_token.line),
+                    TokenType::LESS => self.emit_byte(OpCode::LESS_FLOAT, logic_token.line),
+                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_FLOAT, logic_token.line),
+                    _ => {
+                        errors::error_unexpected(logic_token, "logic operator function");
+                        std::process::exit(1);
+                    }
+                };
+            },
+            TokenType::BOOL => {
+                match logic_token.token_type {
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_BOOL, logic_token.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_BOOL, logic_token.line),
+                    _ => {
+                        errors::error_unexpected(logic_token, "logic operator function");
+                        std::process::exit(1);
+                    }
+                };
+            }
+            _ => {
+                errors::error_unexpected_token_type(constants_type, logic_token.line, "logic operator function");
+                std::process::exit(1);
+            }
+        };
+    }
+
     pub fn bool(&mut self) {
         match self.parser.prev.token_type {
             TokenType::KEYWORD(val) => {
@@ -212,63 +275,56 @@ impl Compiler {
 
         self.parse((rule.prec as u32 + 1).into());
 
-        if !self.check_num_types(self.parser.prev.token_type, left_side) {
-            errors::error_message("COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
-                left_side,
-                arithmetic_token.value.iter().collect::<String>(),
-                self.parser.prev.token_type,
-                arithmetic_token.line,
-            ));
-            std::process::exit(1);
-        }
-        let constants_type = self.parser.prev.token_type;
+        let constants_type = self.check_static_types(&self.parser.prev, left_side, &arithmetic_token);
 
-        match arithmetic_token.token_type {
-            TokenType::PLUS => {
-                match constants_type {
-                    TokenType::INT => self.emit_byte(OpCode::ADD_INT, arithmetic_token.line),
-                    TokenType::FLOAT => self.emit_byte(OpCode::ADD_FLOAT, arithmetic_token.line),
+        match constants_type {
+            TokenType::INT => {
+                match arithmetic_token.token_type {
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_INT, arithmetic_token.line),
+                    TokenType::MINUS => self.emit_byte(OpCode::SUB_INT, arithmetic_token.line),
+                    TokenType::STAR => self.emit_byte(OpCode::MUL_INT, arithmetic_token.line),
+                    TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, arithmetic_token.line),
                     _ => {
-                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                        errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
                     }
-                }
+                };
             },
-            TokenType::MINUS => {
-                match constants_type {
-                    TokenType::INT => self.emit_byte(OpCode::SUB_INT, arithmetic_token.line),
-                    TokenType::FLOAT => self.emit_byte(OpCode::SUB_FLOAT, arithmetic_token.line),
+            TokenType::FLOAT => {
+                match arithmetic_token.token_type {
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_FLOAT, arithmetic_token.line),
+                    TokenType::MINUS => self.emit_byte(OpCode::SUB_FLOAT, arithmetic_token.line),
+                    TokenType::STAR => self.emit_byte(OpCode::MUL_FLOAT, arithmetic_token.line),
+                    TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, arithmetic_token.line),
                     _ => {
-                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                        errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
                     }
-                }
-            },
-            TokenType::STAR => {
-                match constants_type {
-                    TokenType::INT => self.emit_byte(OpCode::MUL_INT, arithmetic_token.line),
-                    TokenType::FLOAT => self.emit_byte(OpCode::MUL_FLOAT, arithmetic_token.line),
-                    _ => {
-                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
-                        std::process::exit(1);
-                    }
-                }
-            },
-            TokenType::SLASH => {
-                match constants_type {
-                    TokenType::INT => self.emit_byte(OpCode::DIV_INT, arithmetic_token.line),
-                    TokenType::FLOAT => self.emit_byte(OpCode::DIV_FLOAT, arithmetic_token.line),
-                    _ => {
-                        errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
-                        std::process::exit(1);
-                    }
-                }
+                };
             },
             _ => {
-                errors::error_unexpected(arithmetic_token, "arithmetic function");
+                errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
                 std::process::exit(1);
             }
         };
+    }
+
+    pub fn check_static_types(&self, a_token: &Token, b_type: TokenType, op: &Token) -> TokenType {
+        let a_token_type = match a_token.token_type {
+            TokenType::KEYWORD(_) => TokenType::BOOL,
+            token_type => token_type,
+        };
+
+        if !self.check_num_types(a_token_type, b_type) {
+            errors::error_message("COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
+                b_type,
+                op.value.iter().collect::<String>(),
+                a_token_type,
+                a_token.line,
+            ));
+            std::process::exit(1);
+        }
+        a_token_type
     }
 
     pub fn check_num_types(&self, a_type: TokenType, b_type: TokenType) -> bool {
