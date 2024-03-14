@@ -3,6 +3,7 @@ use std::env;
 mod frontend;
 mod vm;
 mod compiler;
+mod objects;
 
 #[cfg(feature = "debug_chunk")]
 mod debug;
@@ -28,6 +29,34 @@ fn run(file_path: &String) {
     
     let mut vm = vm::vm::VM::new(chunk);
     vm.run();
+
+    let obj = objects::rc::TestObject {
+        name: "Test".to_string(),
+        value: 1,
+        rc_counter: 1,
+        index: 0,
+    };
+
+    let obj2 = objects::rc::TestObject {
+        name: "Test".to_string(),
+        value: 1,
+        rc_counter: 1,
+        index: 0,
+    };
+
+    let mut rc = objects::rc::ReferenceCounter::init();
+    rc.push(Box::new(obj));
+    rc.push(Box::new(obj2));
+
+    rc.inc_counter(0);
+    println!("{} len: {}", rc.get_object(0).get_rc_counter(), rc.heap.len());
+
+    rc.dec_counter(0);
+    println!("{} len: {}", rc.get_object(0).get_rc_counter(), rc.heap.len());
+
+    rc.dec_counter(0);
+    println!("{} len: {}", rc.get_object(0).get_rc_counter(), rc.heap.len());
+
 }
 
 fn main() {
