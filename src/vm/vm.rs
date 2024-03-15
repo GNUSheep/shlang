@@ -3,10 +3,13 @@ use crate::vm::{
     value::Value,
 };
 
+use crate::objects::rc;
+
 pub struct VM {
     chunk: Chunk,
     stack: Vec<Value>,
     ip: usize,
+    rc: rc::ReferenceCounter,
 }
 
 impl VM {
@@ -15,6 +18,7 @@ impl VM {
             chunk: chunk,
             stack: vec![],
             ip: 0,
+            rc: rc::ReferenceCounter::init(),
         }
     }
 
@@ -171,6 +175,7 @@ impl VM {
                 },
             }
         }
+        self.rc.remove_all();
     }
 
 

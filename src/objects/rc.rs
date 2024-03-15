@@ -75,4 +75,8 @@ impl ReferenceCounter {
             obj.set_index(i);
         }
     }
+
+    pub fn remove_all(&mut self) {
+        self.heap = vec![];
+    }
 }
