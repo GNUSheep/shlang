@@ -45,6 +45,7 @@ pub enum Keywords {
     VAR,
     TRUE,
     FALSE,
+    FN,
 }
 
 impl std::str::FromStr for Keywords {
@@ -55,6 +56,7 @@ impl std::str::FromStr for Keywords {
             "var" => Ok(Keywords::VAR),
             "true" => Ok(Keywords::TRUE),
             "false" => Ok(Keywords::FALSE),
+            "fn" => Ok(Keywords::FN),
             _ => Err(()),
         }
     }

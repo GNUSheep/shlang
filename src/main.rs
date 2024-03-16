@@ -20,14 +20,17 @@ fn run(file_path: &String) {
     }
 
     let mut compiler = compiler::compiler::Compiler::new(tokens);
-    let chunk = compiler.compile();
+    let main_chunk = compiler.compile();
 
     #[cfg(feature = "debug_chunk")]
     {
-        debug::debug_chunk(&chunk);
+        debug::debug_chunk(&main_fn.chunk);
     }
-    
-    let mut vm = vm::vm::VM::new(chunk);
+    let mut vm = vm::vm::VM::new();
+    let main_frame = vm.declare_all(main_chunk);
+
+    vm.frames.push(main_frame);
+
     vm.run();
 }
 

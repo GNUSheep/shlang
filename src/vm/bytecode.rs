@@ -1,8 +1,11 @@
 use crate::vm::value::{Value, ValuesArray};
+use crate::objects::functions;
 
 #[derive(Debug, Clone)]
 #[allow(non_camel_case_types)]
 pub enum OpCode {
+    FUNCTION_DEC(functions::Function),
+
     CONSTANT_BOOL(usize),
     EQ_BOOL,
     NEG_EQ_BOOL,

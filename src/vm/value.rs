@@ -2,6 +2,8 @@ use crate::frontend::tokens::TokenType;
 
 use crate::compiler::errors;
 
+use crate::vm::bytecode::Chunk;
+
 pub use std::ops::Neg;
 
 #[derive(Debug, Clone)]
@@ -10,6 +12,7 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     String(String),
+    Chunk(Chunk),
 }
 
 impl Value {
@@ -37,7 +40,17 @@ impl Value {
         match self {
             Value::Bool(val) => return *val,
             _ => {
-                errors::conversion_error("Enum Value<_>", "i64");
+                errors::conversion_error("Enum Value<_>", "bool");
+                std::process::exit(1);
+            },
+        }
+    }
+
+    pub fn get_chunk(&self) -> Chunk {
+        match self {
+            Value::Chunk(val) => return val.clone(),
+            _ => {
+                errors::conversion_error("Enum Value<_>", "chunk");
                 std::process::exit(1);
             },
         }

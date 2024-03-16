@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, error};
 
-use crate::vm::{
-    value::{Value, Convert},
-    bytecode::{Chunk, OpCode, Instruction},
-};
+use crate::{objects::functions::Function, vm::{
+    bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+}};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
+use crate::objects::functions;
 
 use super::errors;
 
@@ -22,6 +22,11 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         
         (TokenType::KEYWORD(Keywords::TRUE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::FALSE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
+
+        (TokenType::KEYWORD(Keywords::FN), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+
+        (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::INTERJ, ParseRule { prefix: Some(Compiler::negation), infix: None, prec: Precedence::NONE }),
 
@@ -98,12 +103,21 @@ impl Parser {
         }
     }
 
-    //pub fn check_if_eof(&mut self) -> bool {
-    //    if self.cur.token_type == TokenType::EOF {
-    //        return true;
-    //    }
-    //    false
-    //}
+    pub fn check_if_eof(&mut self) -> bool {
+        if self.cur.token_type == TokenType::EOF {
+            return true;
+        }
+        false
+    }
+
+    pub fn consume(&mut self, token_type: TokenType) {
+        if self.cur.token_type != token_type {
+            errors::error_message("PARSER ERROR", format!("Expected to find a {:?}", token_type));
+            std::process::exit(1);
+        }
+        self.advance();
+    }
+
 
     pub fn get_rule(&self, token_type: &TokenType) -> &ParseRule {
         &self.rules[token_type]
@@ -112,7 +126,9 @@ impl Parser {
 
 pub struct Compiler {
     parser: Parser,
-    chunk: Chunk,
+    cur_function: Function,
+    scope_depth: u32,
+    line: u32,
 }
 
 impl Compiler {
@@ -125,8 +141,14 @@ impl Compiler {
                 index: 0,
                 rules: init_rules(),
             },
-            chunk: Chunk::new(),
+            cur_function: Function::new("".to_string()),
+            scope_depth: 0,
+            line: 0,
         }
+    }
+
+    pub fn get_cur_chunk(&mut self) -> &mut Chunk {
+        self.cur_function.get_chunk()
     }
 
     pub fn negation(&mut self) {
@@ -135,8 +157,8 @@ impl Compiler {
         self.parse(Precedence::UNARY);
 
         match negation_token.token_type {
-            TokenType::MINUS => self.emit_byte(OpCode::NEGATE, negation_token.line),
-            TokenType::INTERJ => self.emit_byte(OpCode::NEGATE, negation_token.line),
+            TokenType::MINUS => self.emit_byte(OpCode::NEGATE, self.line),
+            TokenType::INTERJ => self.emit_byte(OpCode::NEGATE, self.line),
             _ => {
                 errors::error_unexpected(self.parser.prev.clone(), "negation function");
                 std::process::exit(1);
@@ -144,9 +166,11 @@ impl Compiler {
         }
     }
 
-    pub fn logic_operator(&mut self) {
+    pub fn logic_operator(&mut self) {        
         let logic_token = self.parser.prev.clone();
-        let left_side = self.chunk.get_value(self.chunk.values.len() - 1).convert();
+
+        let chunk = self.get_cur_chunk();
+        let left_side = chunk.get_value(chunk.values.len() - 1).convert();
         
         let rule = self.parser.get_rule(&logic_token.token_type);
 
@@ -157,12 +181,12 @@ impl Compiler {
         match constants_type {
             TokenType::INT => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_INT, logic_token.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_INT, logic_token.line),
-                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_INT, logic_token.line),
-                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_INT, logic_token.line),
-                    TokenType::LESS => self.emit_byte(OpCode::LESS_INT, logic_token.line),
-                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_INT, logic_token.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_INT, self.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_INT, self.line),
+                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_INT, self.line),
+                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_INT, self.line),
+                    TokenType::LESS => self.emit_byte(OpCode::LESS_INT, self.line),
+                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_INT, self.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -171,12 +195,12 @@ impl Compiler {
             },
             TokenType::FLOAT => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_FLOAT, logic_token.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_FLOAT, logic_token.line),
-                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_FLOAT, logic_token.line),
-                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_FLOAT, logic_token.line),
-                    TokenType::LESS => self.emit_byte(OpCode::LESS_FLOAT, logic_token.line),
-                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_FLOAT, logic_token.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_FLOAT, self.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_FLOAT, self.line),
+                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_FLOAT, self.line),
+                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_FLOAT, self.line),
+                    TokenType::LESS => self.emit_byte(OpCode::LESS_FLOAT, self.line),
+                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_FLOAT, self.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -185,8 +209,8 @@ impl Compiler {
             },
             TokenType::BOOL => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_BOOL, logic_token.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_BOOL, logic_token.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_BOOL, self.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_BOOL, self.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -194,7 +218,7 @@ impl Compiler {
                 };
             }
             _ => {
-                errors::error_unexpected_token_type(constants_type, logic_token.line, "logic operator function");
+                errors::error_unexpected_token_type(constants_type, self.line, "logic operator function");
                 std::process::exit(1);
             }
         };
@@ -205,19 +229,17 @@ impl Compiler {
             TokenType::KEYWORD(val) => {
                 match val {
                     Keywords::TRUE => {
-                        let pos = self.chunk.push_value(Value::Bool(true));
-                        let line = self.parser.prev.line;
+                        let pos = self.get_cur_chunk().push_value(Value::Bool(true));
 
-                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), line);
+                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.line);
                     },
                     Keywords::FALSE => {
-                        let pos = self.chunk.push_value(Value::Bool(false));
-                        let line = self.parser.prev.line;
+                        let pos = self.get_cur_chunk().push_value(Value::Bool(false));
 
-                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), line);
+                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.line);
                     }, 
                     _ => {
-                        errors::error_unexpected_keyword(val, self.parser.prev.line, "bool function");
+                        errors::error_unexpected_keyword(val, self.line, "bool function");
                         std::process::exit(1);
                     }
                 }
@@ -240,10 +262,9 @@ impl Compiler {
                     },
                 };
 
-                let pos = self.chunk.push_value(Value::Int(value));
-                let line = self.parser.prev.line;
+                let pos = self.get_cur_chunk().push_value(Value::Int(value));;
 
-                self.emit_byte(OpCode::CONSTANT_INT(pos), line);
+                self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
             }
             TokenType::FLOAT => {
                 let value: f64 = match self.parser.prev.value.iter().collect::<String>().parse() {
@@ -254,12 +275,11 @@ impl Compiler {
                     },
                 };
 
-                let pos = self.chunk.push_value(Value::Float(value));
-                let line = self.parser.prev.line;
+                let pos = self.get_cur_chunk().push_value(Value::Float(value));
 
-                self.emit_byte(OpCode::CONSTANT_FLOAT(pos), line);
+                self.emit_byte(OpCode::CONSTANT_FLOAT(pos), self.line);
             }
-            // Better handling errors
+            // Better hang errors
             _ => {
                 errors::error_unexpected(self.parser.prev.clone(), "number function");
                 std::process::exit(1);
@@ -269,7 +289,9 @@ impl Compiler {
 
     pub fn arithmetic(&mut self) {
         let arithmetic_token = self.parser.prev.clone();
-        let left_side = self.chunk.get_value(self.chunk.values.len() - 1).convert();
+
+        let chunk = self.get_cur_chunk();
+        let left_side = chunk.get_value(chunk.values.len() - 1).convert();
         
         let rule = self.parser.get_rule(&arithmetic_token.token_type);
 
@@ -280,10 +302,10 @@ impl Compiler {
         match constants_type {
             TokenType::INT => {
                 match arithmetic_token.token_type {
-                    TokenType::PLUS => self.emit_byte(OpCode::ADD_INT, arithmetic_token.line),
-                    TokenType::MINUS => self.emit_byte(OpCode::SUB_INT, arithmetic_token.line),
-                    TokenType::STAR => self.emit_byte(OpCode::MUL_INT, arithmetic_token.line),
-                    TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, arithmetic_token.line),
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_INT, self.line),
+                    TokenType::MINUS => self.emit_byte(OpCode::SUB_INT, self.line),
+                    TokenType::STAR => self.emit_byte(OpCode::MUL_INT, self.line),
+                    TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, self.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -292,10 +314,10 @@ impl Compiler {
             },
             TokenType::FLOAT => {
                 match arithmetic_token.token_type {
-                    TokenType::PLUS => self.emit_byte(OpCode::ADD_FLOAT, arithmetic_token.line),
-                    TokenType::MINUS => self.emit_byte(OpCode::SUB_FLOAT, arithmetic_token.line),
-                    TokenType::STAR => self.emit_byte(OpCode::MUL_FLOAT, arithmetic_token.line),
-                    TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, arithmetic_token.line),
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_FLOAT, self.line),
+                    TokenType::MINUS => self.emit_byte(OpCode::SUB_FLOAT, self.line),
+                    TokenType::STAR => self.emit_byte(OpCode::MUL_FLOAT, self.line),
+                    TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, self.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -303,7 +325,7 @@ impl Compiler {
                 };
             },
             _ => {
-                errors::error_unexpected_token_type(constants_type, arithmetic_token.line, "arithmetic function");
+                errors::error_unexpected_token_type(constants_type, self.line, "arithmetic function");
                 std::process::exit(1);
             }
         };
@@ -320,7 +342,7 @@ impl Compiler {
                 b_type,
                 op.value.iter().collect::<String>(),
                 a_token_type,
-                a_token.line,
+                self.line,
             ));
             std::process::exit(1);
         }
@@ -338,13 +360,70 @@ impl Compiler {
         self.parse(Precedence::ASSIGNMENT);   
     }
 
+    pub fn block(&mut self) {
+        while !(self.parser.cur.token_type == TokenType::RIGHT_BRACE) && !self.parser.check_if_eof() {
+            self.compile_line();
+        }
+
+        self.parser.consume(TokenType::RIGHT_BRACE);
+    }
+
+    pub fn fn_declare(&mut self) {
+        let name = self.parser.cur.value.iter().collect::<String>();
+        let function = Function::new(name);
+
+        self.parser.advance();
+
+        self.parser.consume(TokenType::LEFT_PAREN);
+        self.parser.consume(TokenType::RIGHT_PAREN);
+        self.parser.consume(TokenType::LEFT_BRACE);
+
+        self.scope_depth += 1;
+
+        let enclosing = self.cur_function.clone();
+        self.cur_function = function;
+
+        self.block();
+
+        self.emit_byte(OpCode::RETURN, self.line);
+        let op_code = OpCode::FUNCTION_DEC(self.cur_function.clone());
+
+        self.cur_function = enclosing;
+
+        self.emit_byte(op_code, self.line);
+
+        self.scope_depth -= 1;
+    }
+
+    pub fn declare(&mut self) {
+        match self.parser.prev.token_type {
+            TokenType::KEYWORD(Keywords::FN) => {
+                self.fn_declare()
+            }
+            _ => errors::error_unexpected(self.parser.prev.clone(), "declare function"),
+        }
+    }
+
+    fn compile_line(&mut self) {
+        if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::FN) {
+            self.parser.advance();
+            self.declare();
+        }else {
+            self.expression();
+        } 
+    }
+
     pub fn compile(&mut self) -> Chunk {
         self.parser.advance();
-        self.expression();
-        let line = self.chunk.get_instruction(self.chunk.len() - 1).line;
-        self.emit_byte(OpCode::RETURN, line);
+        loop {
+            self.line += 1;
+            if self.parser.check_if_eof() {
+                break;
+            }
+            self.compile_line();
+        }
 
-        self.chunk.clone()
+        self.get_cur_chunk().clone()
     }
     
     pub fn parse(&mut self, prec: Precedence) {
@@ -354,7 +433,7 @@ impl Compiler {
             errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:", 
                 self.parser.prev.token_type, 
                 self.parser.prev.value.iter().collect::<String>(), 
-                self.parser.prev.line,
+                self.line,
             ));
             std::process::exit(1);
         }
@@ -363,7 +442,7 @@ impl Compiler {
         match rule.prefix {
             Some(f) => f(self),
             _ => {
-                errors::error_message("PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+                errors::error_message("PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.line));
                 std::process::exit(1);
             },
         };
@@ -375,7 +454,7 @@ impl Compiler {
                 errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:", 
                     self.parser.prev.token_type, 
                     self.parser.prev.value.iter().collect::<String>(), 
-                    self.parser.prev.line,
+                    self.line,
                 ));
                 std::process::exit(1);
             }
@@ -383,7 +462,7 @@ impl Compiler {
             match rule.infix {
                 Some(f) => f(self),
                 _ => {
-                    errors::error_message("PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.parser.prev.line));
+                    errors::error_message("PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.line));
                     std::process::exit(1);
                 },
             }
@@ -391,6 +470,10 @@ impl Compiler {
     }
 
     pub fn emit_byte(&mut self, op: OpCode, line: u32) {
-        self.chunk.push(Instruction{ op: op, line: line });
+        if self.scope_depth == 0 {
+            errors::error_message("PARSER ERROR", format!("Expression found outside of bounds {}:",self.line));
+            std::process::exit(1)
+        }
+        self.get_cur_chunk().push(Instruction{ op: op, line: line });
     }
 }

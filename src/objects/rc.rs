@@ -1,31 +1,4 @@
-pub struct TestObject {
-    pub name: String,
-    pub value: i32,
-    pub rc_counter: usize,
-    pub index: usize,
-}
-
-impl Object for TestObject {
-    fn inc_counter(&mut self) {
-        self.rc_counter += 1;
-    }
-    
-    fn dec_counter(&mut self) {
-        self.rc_counter -= 1;
-    }
-
-    fn get_rc_counter(&self) -> usize {
-        self.rc_counter
-    }
-
-    fn set_index(&mut self, index: usize) {
-        self.index = index;
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
-    }
-}
+use crate::vm::value;
 
 pub trait Object {
     fn inc_counter(&mut self);
@@ -34,6 +7,8 @@ pub trait Object {
 
     fn set_index(&mut self, index: usize);
     fn get_index(&self) -> usize;
+
+    fn get_value(&self) -> value::Value;
 }
 
 pub struct ReferenceCounter {
