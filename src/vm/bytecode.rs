@@ -5,6 +5,7 @@ use crate::objects::functions;
 #[allow(non_camel_case_types)]
 pub enum OpCode {
     FUNCTION_DEC(functions::Function),
+    FUNCITON_CALL(usize),
 
     CONSTANT_BOOL(usize),
     EQ_BOOL,

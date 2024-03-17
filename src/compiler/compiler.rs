@@ -4,7 +4,6 @@ use crate::{objects::functions::Function, vm::{
     bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
-use crate::objects::functions;
 
 use super::errors;
 
@@ -20,6 +19,8 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::INT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
         (TokenType::FLOAT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
         
+        (TokenType::IDENTIFIER, ParseRule { prefix: Some(Compiler::identifier), infix: None, prec: Precedence::NONE }),
+
         (TokenType::KEYWORD(Keywords::TRUE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::FALSE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
 
@@ -27,6 +28,8 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
 
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+
+        (TokenType::LEFT_PAREN, ParseRule { prefix: None, infix: Some(Compiler::fn_call), prec: Precedence::CALL }),
 
         (TokenType::INTERJ, ParseRule { prefix: Some(Compiler::negation), infix: None, prec: Precedence::NONE }),
 
@@ -129,6 +132,9 @@ pub struct Compiler {
     cur_function: Function,
     scope_depth: u32,
     line: u32,
+    functions: Vec<String>,
+    // rewrite this
+    identifier_to_hold: String,
 }
 
 impl Compiler {
@@ -141,9 +147,11 @@ impl Compiler {
                 index: 0,
                 rules: init_rules(),
             },
-            cur_function: Function::new("".to_string()),
+            cur_function: Function::new(String::new()),
             scope_depth: 0,
             line: 0,
+            functions: vec![],
+            identifier_to_hold: String::new(),
         }
     }
 
@@ -368,8 +376,32 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_BRACE);
     }
 
+    pub fn identifier(&mut self) {
+        self.identifier_to_hold = self.parser.prev.value.iter().collect::<String>();
+    }
+
+    pub fn fn_call(&mut self) {
+        self.parser.consume(TokenType::RIGHT_PAREN);
+
+        let pos = self.functions
+            .iter()
+            .enumerate()
+            .find(|(_, name)| *name == &self.identifier_to_hold)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos == -1 {
+            panic!();
+        }
+
+        self.emit_byte(OpCode::FUNCITON_CALL(pos as usize), self.line);
+    }
+
     pub fn fn_declare(&mut self) {
         let name = self.parser.cur.value.iter().collect::<String>();
+
+        self.functions.push(name.clone());
+
         let function = Function::new(name);
 
         self.parser.advance();

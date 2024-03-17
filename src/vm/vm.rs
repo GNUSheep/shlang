@@ -65,6 +65,12 @@ impl VM {
 
                 },
 
+                OpCode::FUNCITON_CALL(index) => {
+                    let chunk = self.rc.get_object(index).get_value();
+                    self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: vec![], ip: 0 });
+                    self.ip += 1;
+                }
+
                 OpCode::ADD_FLOAT => {
                     let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                     let b = self.frames[self.ip].stack.pop().unwrap().get_float();
@@ -199,8 +205,13 @@ impl VM {
 
                 OpCode::RETURN => {
                     println!("Stack: {:?}", self.frames[self.ip].stack);
+
+                    if self.ip == 0 {
+                        break
+                    }
                     
-                    break
+                    self.ip -= 1;
+
                 },
 
                 _ => panic!("ERROR"),
