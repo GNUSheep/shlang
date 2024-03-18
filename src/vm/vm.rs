@@ -4,8 +4,7 @@ use crate::vm::{
 };
 
 use crate::objects::rc;
-
-use super::bytecode;
+use crate::compiler::errors;
 
 pub struct Frame {
     pub chunk: Chunk,
@@ -35,24 +34,20 @@ impl VM {
     }
 
     pub fn declare_all(&mut self, chunk: Chunk) -> Frame {
-        let mut main_function_index: i32 = -1;
+        let mut main_function_index: usize = 0;
         for instruction in chunk.code {
             match instruction.op {
                 OpCode::FUNCTION_DEC(function) => {
                     if function.name.to_ascii_lowercase() == "main" {
-                        main_function_index = self.rc.heap.len() as i32;
+                        main_function_index = self.rc.heap.len();
                     }
                     self.rc.push(Box::new(function));
                 },
-                _ => panic!("ERROR"),
+                _ => errors::error_message("RUNTIME ERROR", format!("Declare all - this error should never prints out")),
             }
         }
 
-        if main_function_index == -1 {
-            panic!("CANNOT FIND MAIN FUNC");
-        }
-
-        Frame{chunk: self.rc.get_object(main_function_index as usize).get_value().get_chunk(), stack: vec![], ip: 0}
+        Frame{chunk: self.rc.get_object(main_function_index).get_value().get_chunk(), stack: vec![], ip: 0}
     }
 
     pub fn run(&mut self) {
@@ -214,7 +209,7 @@ impl VM {
 
                 },
 
-                _ => panic!("ERROR"),
+                _ => errors::error_message("RUNTIME ERROR", format!("Declare all - this error should never prints out")),
             }
         }
         self.rc.remove_all();

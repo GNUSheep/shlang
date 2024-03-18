@@ -20,6 +20,8 @@ fn run(file_path: &String) {
     }
 
     let mut compiler = compiler::compiler::Compiler::new(tokens);
+    compiler.parser.get_symbols();
+
     let main_chunk = compiler.compile();
 
     #[cfg(feature = "debug_chunk")]

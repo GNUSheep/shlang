@@ -76,8 +76,4 @@ impl Chunk {
     pub fn get_value(&self, index: usize) -> Value {
         self.values.get(index)
     }
-
-    pub fn len(&self) -> usize {
-        self.code.len()
-    }
 } 
