@@ -320,7 +320,6 @@ impl Compiler {
 
                 self.emit_byte(OpCode::CONSTANT_FLOAT(pos), self.line);
             }
-            // Better hang errors
             _ => {
                 errors::error_unexpected(self.parser.prev.clone(), "number function");
                 std::process::exit(1);
