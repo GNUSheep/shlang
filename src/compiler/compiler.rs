@@ -24,11 +24,12 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
     HashMap::from([
         (TokenType::INT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
         (TokenType::FLOAT, ParseRule { prefix: Some(Compiler::number), infix: None, prec: Precedence::NONE }),
-        
+
         (TokenType::IDENTIFIER, ParseRule { prefix: Some(Compiler::identifier), infix: None, prec: Precedence::NONE }),
 
         (TokenType::KEYWORD(Keywords::TRUE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::FALSE), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
+        (TokenType::KEYWORD(Keywords::NULL), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
 
         (TokenType::KEYWORD(Keywords::FN), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
@@ -58,7 +59,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
 #[derive(PartialEq, PartialOrd, Debug, Clone, Copy)]
 pub enum Precedence {
     NONE,
-    ASSIGNMENT,  
+    ASSIGNMENT,
     OR,
     AND,
     EQUALITY,
@@ -88,7 +89,6 @@ impl From<u32> for Precedence {
                 errors::conversion_error("u32", "Precedence");
                 std::process::exit(1);
             }
-            
         }
     }
 }
@@ -140,7 +140,7 @@ impl Parser {
                     errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token_pair[1].line));
                     std::process::exit(1);
                 }
-                
+
                 if fn_name == "main".to_ascii_lowercase() {
                     is_main_fn_found = true;
                 }
@@ -207,12 +207,12 @@ impl Compiler {
         }
     }
 
-    pub fn logic_operator(&mut self) {        
+    pub fn logic_operator(&mut self) {
         let logic_token = self.parser.prev.clone();
 
         let chunk = self.get_cur_chunk();
         let left_side = chunk.get_value(chunk.values.len() - 1).convert();
-        
+
         let rule = self.parser.get_rule(&logic_token.token_type);
 
         self.parse((rule.prec as u32 + 1).into());
@@ -278,7 +278,12 @@ impl Compiler {
                         let pos = self.get_cur_chunk().push_value(Value::Bool(false));
 
                         self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.line);
-                    }, 
+                    },
+                    Keywords::NULL => {
+                        let pos = self.get_cur_chunk().push_value(Value::Null);
+
+                        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+                    },
                     _ => {
                         errors::error_unexpected_keyword(val, self.line, "bool function");
                         std::process::exit(1);
@@ -332,7 +337,7 @@ impl Compiler {
 
         let chunk = self.get_cur_chunk();
         let left_side = chunk.get_value(chunk.values.len() - 1).convert();
-        
+
         let rule = self.parser.get_rule(&arithmetic_token.token_type);
 
         self.parse((rule.prec as u32 + 1).into());
@@ -397,7 +402,7 @@ impl Compiler {
     }
 
     pub fn expression(&mut self) {
-        self.parse(Precedence::ASSIGNMENT);   
+        self.parse(Precedence::ASSIGNMENT);
     }
 
     pub fn block(&mut self) {
@@ -417,8 +422,9 @@ impl Compiler {
             .unwrap_or(-1);
 
         if pos == -1 {
-            errors::error_message("COMPILER ERROR", 
-            format!("Symbol: \"{}\" is not defined in this scope {}:", self.parser.prev.value.iter().collect::<String>(), self.line))
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined in this scope {}:", self.parser.prev.value.iter().collect::<String>(), self.line));
+            std::process::exit(1);
         }
 
         self.symbol_to_hold = pos as usize;
@@ -453,6 +459,9 @@ impl Compiler {
 
         self.block();
 
+        let pos = self.get_cur_chunk().push_value(Value::Null);
+        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+
         self.emit_byte(OpCode::RETURN, self.line);
         let op_code = OpCode::FUNCTION_DEC(self.cur_function.clone());
 
@@ -466,19 +475,29 @@ impl Compiler {
     pub fn declare(&mut self) {
         match self.parser.prev.token_type {
             TokenType::KEYWORD(Keywords::FN) => {
-                self.fn_declare()
+                self.fn_declare();
             }
             _ => errors::error_unexpected(self.parser.prev.clone(), "declare function"),
         }
     }
 
+    pub fn return_stmt(&mut self) {
+        self.expression();
+        self.emit_byte(OpCode::RETURN, self.line);
+    }
+
     fn compile_line(&mut self) {
-        if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::FN) {
-            self.parser.advance();
-            self.declare();
-        }else {
-            self.expression();
-        } 
+        match self.parser.cur.token_type {
+            TokenType::KEYWORD(Keywords::FN) => {
+                self.parser.advance();
+                self.declare();
+            },
+            TokenType::KEYWORD(Keywords::RETURN) => {
+                self.parser.advance();
+                self.return_stmt();
+            },
+            _ => self.expression(),
+        }
     }
 
     pub fn compile(&mut self) -> Chunk {
@@ -493,14 +512,14 @@ impl Compiler {
 
         self.get_cur_chunk().clone()
     }
-    
+
     pub fn parse(&mut self, prec: Precedence) {
         self.parser.advance();
 
         if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-            errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:", 
-                self.parser.prev.token_type, 
-                self.parser.prev.value.iter().collect::<String>(), 
+            errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
+                self.parser.prev.token_type,
+                self.parser.prev.value.iter().collect::<String>(),
                 self.line,
             ));
             std::process::exit(1);
@@ -519,9 +538,9 @@ impl Compiler {
             self.parser.advance();
 
             if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-                errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:", 
-                    self.parser.prev.token_type, 
-                    self.parser.prev.value.iter().collect::<String>(), 
+                errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
+                    self.parser.prev.token_type,
+                    self.parser.prev.value.iter().collect::<String>(),
                     self.line,
                 ));
                 std::process::exit(1);

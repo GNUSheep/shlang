@@ -35,6 +35,8 @@ pub enum OpCode {
     LESS_INT,
     EQ_LESS_INT,
 
+    CONSTANT_NULL(usize),
+
     NEGATE,
 
     RETURN,

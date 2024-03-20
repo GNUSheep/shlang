@@ -11,6 +11,7 @@ pub enum Value {
     Float(f64),
     Int(i64),
     Bool(bool),
+    Null,
     String(String),
     Chunk(Chunk),
 }

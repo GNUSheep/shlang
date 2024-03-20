@@ -54,7 +54,7 @@ impl VM {
         loop {
             let instruction = self.get_instruction();
             match instruction.op.clone() { 
-                OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) | OpCode::CONSTANT_BOOL(index) => {
+                OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) | OpCode::CONSTANT_BOOL(index)  | OpCode::CONSTANT_NULL(index) => {
                     let frame = &mut self.frames[self.ip];
                     frame.stack.push(frame.chunk.get_value(index));
 
@@ -199,17 +199,19 @@ impl VM {
                 }
 
                 OpCode::RETURN => {
-                    println!("Stack: {:?}", self.frames[self.ip].stack);
-
                     if self.ip == 0 {
+                        println!("Stack: {:?}", self.frames[self.ip].stack);
                         break
                     }
+                    let return_val = self.frames[self.ip].stack.pop().unwrap();
                     
                     self.ip -= 1;
+        
+                    self.frames[self.ip].stack.push(return_val);
 
                 },
 
-                _ => errors::error_message("RUNTIME ERROR", format!("Declare all - this error should never prints out")),
+                _ => errors::error_message("RUNTIME - VM ERROR", format!("Declare all - this error should never prints out")),
             }
         }
         self.rc.remove_all();
