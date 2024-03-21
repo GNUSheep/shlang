@@ -1,3 +1,6 @@
+use crate::vm::value::Convert;
+use crate::compiler::errors;
+
 #[derive(Debug, PartialEq)]
 #[derive(Clone)]
 pub struct Token {
@@ -18,7 +21,7 @@ pub enum TokenType {
     MINUS,
     PLUS,
     STAR,
-    SEMICOLON,
+    COLON,
     SLASH,
     INTERJ,
     INTERJ_EQ,
@@ -43,6 +46,7 @@ pub enum TokenType {
 #[allow(non_camel_case_types)]
 pub enum Keywords {
     VAR,
+    INT,
     TRUE,
     FALSE,
     NULL,
@@ -56,12 +60,26 @@ impl std::str::FromStr for Keywords {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "var" => Ok(Keywords::VAR),
+            "int" => Ok(Keywords::INT),
             "true" => Ok(Keywords::TRUE),
             "false" => Ok(Keywords::FALSE),
             "null" => Ok(Keywords::NULL),
             "fn" => Ok(Keywords::FN),
             "return" => Ok(Keywords::RETURN),
             _ => Err(()),
+        }
+    }
+}
+
+impl Convert for Keywords {
+    fn convert(&self) -> TokenType {
+        match self {
+            Keywords::INT => TokenType::INT,
+            Keywords::TRUE | Keywords::FALSE => TokenType::BOOL,
+            _ => {
+                errors::conversion_error("Enum Keyword<_>", "TokenType");
+                std::process::exit(1);
+            },
         }
     }
 }

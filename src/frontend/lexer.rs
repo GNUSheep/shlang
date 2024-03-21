@@ -166,7 +166,7 @@ impl Scanner {
             '+' => TokenType::PLUS,
             '-' => TokenType::MINUS,
             '*' => TokenType::STAR,
-            ';' => TokenType::SEMICOLON,
+            ':' => TokenType::COLON,
             '/' => TokenType::SLASH,
             '!' => {
                 if self.peek() == '=' {

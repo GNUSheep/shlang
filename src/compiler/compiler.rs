@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use crate::{objects::functions::Function, vm::{
-    bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+use crate::{
+    objects::functions::{Function, Local},
+    vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -32,6 +33,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::KEYWORD(Keywords::NULL), ParseRule { prefix: Some(Compiler::bool), infix: None, prec: Precedence::NONE }),
 
         (TokenType::KEYWORD(Keywords::FN), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::KEYWORD(Keywords::VAR), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
@@ -192,6 +194,10 @@ impl Compiler {
         self.cur_function.get_chunk()
     }
 
+    pub fn get_cur_locals(&mut self) -> &mut Vec<Local> {
+        self.cur_function.get_locals()
+    }
+
     pub fn negation(&mut self) {
         let negation_token = self.parser.prev.clone();
 
@@ -336,13 +342,15 @@ impl Compiler {
         let arithmetic_token = self.parser.prev.clone();
 
         let chunk = self.get_cur_chunk();
-        let left_side = chunk.get_value(chunk.values.len() - 1).convert();
+        //let left_side = chunk.get_value(chunk.values.len() - 1).convert();
 
         let rule = self.parser.get_rule(&arithmetic_token.token_type);
 
         self.parse((rule.prec as u32 + 1).into());
 
-        let constants_type = self.check_static_types(&self.parser.prev, left_side, &arithmetic_token);
+        // fix checking type
+        //let constants_type = self.check_static_types(&self.parser.prev, left_side, &arithmetic_token);
+        let constants_type = TokenType::INT;
 
         match constants_type {
             TokenType::INT => {
@@ -378,7 +386,7 @@ impl Compiler {
 
     pub fn check_static_types(&self, a_token: &Token, b_type: TokenType, op: &Token) -> TokenType {
         let a_token_type = match a_token.token_type {
-            TokenType::KEYWORD(_) => TokenType::BOOL,
+            TokenType::KEYWORD(keyword) => keyword.convert(),
             token_type => token_type,
         };
 
@@ -414,6 +422,16 @@ impl Compiler {
     }
 
     pub fn identifier(&mut self) {
+        if self.parser.cur.token_type == TokenType::EQ {
+            self.var_assign();
+            return
+        }
+
+        if self.parser.cur.token_type != TokenType::LEFT_PAREN {
+            self.var_call();
+            return
+        } 
+
         let pos = self.parser.symbols
             .iter()
             .enumerate()
@@ -423,11 +441,86 @@ impl Compiler {
 
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined in this scope {}:", self.parser.prev.value.iter().collect::<String>(), self.line));
+            format!("Symbol: \"{}\" is not defined as function in this scope {}:", self.parser.prev.value.iter().collect::<String>(), self.line));
             std::process::exit(1);
         }
 
         self.symbol_to_hold = pos as usize;
+    }
+
+    pub fn var_assign(&mut self) {
+        let var_name = self.parser.prev.value.iter().collect::<String>();
+        self.parser.consume(TokenType::EQ);
+
+        self.expression();
+
+        let pos = self.get_cur_locals()
+        .iter()
+        .enumerate()
+        .find(|(_, local)| local.name == var_name)
+        .map(|(index, _)| index as i32)
+        .unwrap_or(-1);
+
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as var in this scope {}:", var_name, self.line));
+            std::process::exit(1);
+        }
+
+        self.emit_byte(OpCode::VAR_SET(pos as usize), self.line);
+    }
+
+    pub fn var_call(&mut self) {
+        let var_name = self.parser.prev.value.iter().collect::<String>();
+
+        let pos = self.get_cur_locals()
+            .iter()
+            .enumerate()
+            .find(|(_, local)| local.name == var_name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as var in this scope {}:", var_name, self.line));
+            std::process::exit(1);
+        }
+
+        self.emit_byte(OpCode::VAR_CALL(pos as usize), self.line);
+    }
+
+    pub fn var_declare(&mut self) {
+        self.parser.consume(TokenType::IDENTIFIER);
+
+        let var_name = self.parser.prev.value.iter().collect::<String>();
+        if self.get_cur_locals().iter().any(| local | local.name == var_name ) {
+            errors::error_message("COMPILER ERROR", format!("Symnbol: \"{}\" is already defined {}:", var_name, self.line));
+            std::process::exit(1);
+        }
+
+        self.parser.consume(TokenType::COLON);
+        if self.parser.cur.token_type != TokenType::KEYWORD(Keywords::INT) {
+            errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
+            std::process::exit(1);
+        }
+        let var_type = match self.parser.cur.token_type {
+            TokenType::KEYWORD(keyword) => keyword.convert(),
+            _ => {
+                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
+                std::process::exit(1);
+            },
+        };
+        self.parser.advance();
+
+        if self.parser.cur.token_type == TokenType::EQ {
+            self.parser.advance();
+            self.expression();
+        }else {
+            let pos = self.get_cur_chunk().push_value(Value::Null);
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+        }
+
+        self.get_cur_locals().push(Local { name: var_name, local_type: var_type});
     }
 
     pub fn fn_call(&mut self) {
@@ -476,7 +569,10 @@ impl Compiler {
         match self.parser.prev.token_type {
             TokenType::KEYWORD(Keywords::FN) => {
                 self.fn_declare();
-            }
+            },
+            TokenType::KEYWORD(Keywords::VAR) => {
+                self.var_declare();
+            },
             _ => errors::error_unexpected(self.parser.prev.clone(), "declare function"),
         }
     }
@@ -488,7 +584,7 @@ impl Compiler {
 
     fn compile_line(&mut self) {
         match self.parser.cur.token_type {
-            TokenType::KEYWORD(Keywords::FN) => {
+            TokenType::KEYWORD(Keywords::FN) | TokenType::KEYWORD(Keywords::VAR) => {
                 self.parser.advance();
                 self.declare();
             },

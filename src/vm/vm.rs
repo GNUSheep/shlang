@@ -64,6 +64,15 @@ impl VM {
                     let chunk = self.rc.get_object(index).get_value();
                     self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: vec![], ip: 0 });
                     self.ip += 1;
+                },
+
+                OpCode::VAR_CALL(index) => {
+                    let value = self.frames[self.ip].stack[index].clone();
+                    self.frames[self.ip].stack.push(value);
+                },
+                OpCode::VAR_SET(index) => {
+                    let value = self.frames[self.ip].stack.pop().unwrap();
+                    self.frames[self.ip].stack[index] = value;
                 }
 
                 OpCode::ADD_FLOAT => {

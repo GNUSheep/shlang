@@ -7,6 +7,9 @@ pub enum OpCode {
     FUNCTION_DEC(functions::Function),
     FUNCITON_CALL(usize),
 
+    VAR_CALL(usize),
+    VAR_SET(usize),
+
     CONSTANT_BOOL(usize),
     EQ_BOOL,
     NEG_EQ_BOOL,
