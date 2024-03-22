@@ -213,6 +213,7 @@ impl VM {
                         break
                     }
                     let return_val = self.frames[self.ip].stack.pop().unwrap();
+                    self.frames.pop();
                     
                     self.ip -= 1;
         

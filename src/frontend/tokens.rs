@@ -47,6 +47,7 @@ pub enum TokenType {
 pub enum Keywords {
     VAR,
     INT,
+    FLOAT,
     TRUE,
     FALSE,
     NULL,
@@ -61,6 +62,7 @@ impl std::str::FromStr for Keywords {
         match s {
             "var" => Ok(Keywords::VAR),
             "int" => Ok(Keywords::INT),
+            "float" => Ok(Keywords::FLOAT),
             "true" => Ok(Keywords::TRUE),
             "false" => Ok(Keywords::FALSE),
             "null" => Ok(Keywords::NULL),

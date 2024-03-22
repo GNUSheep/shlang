@@ -1,4 +1,4 @@
-use std::env;
+use::std::env;
 
 mod frontend;
 mod vm;
@@ -23,7 +23,6 @@ fn run(file_path: &String) {
     compiler.parser.get_symbols();
 
     let main_chunk = compiler.compile();
-
     #[cfg(feature = "debug_chunk")]
     {
         debug::debug_chunk(&main_fn.chunk);

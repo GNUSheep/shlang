@@ -8,10 +8,11 @@ use crate::frontend::tokens::{Token, TokenType, Keywords};
 
 use super::errors;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub struct Symbol {
     name: String,
     symbol_type: TokenType,
+    output_type: TokenType,
 }
 
 #[derive(Debug)]
@@ -138,7 +139,7 @@ impl Parser {
             if token_pair[0].token_type == TokenType::KEYWORD(Keywords::FN) {
                 let fn_name = token_pair[1].value.iter().collect::<String>();
 
-                if symbols.contains(&Symbol{name: fn_name.clone(), symbol_type: TokenType::KEYWORD(Keywords::FN)}) {
+                if symbols.iter().any(| symbol | symbol.name == fn_name ) {
                     errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token_pair[1].line));
                     std::process::exit(1);
                 }
@@ -147,7 +148,14 @@ impl Parser {
                     is_main_fn_found = true;
                 }
 
-                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN)});
+                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::KEYWORD(Keywords::NULL) });
+            }
+
+            let symbol_len = symbols.len();
+            match token_pair[0].token_type {
+                TokenType::KEYWORD(Keywords::INT) => symbols[symbol_len - 1].output_type = TokenType::INT,
+                TokenType::KEYWORD(Keywords::FLOAT) => symbols[symbol_len - 1].output_type = TokenType::FLOAT,
+                _ => {},
             }
         }
 
@@ -223,7 +231,10 @@ impl Compiler {
 
         self.parse((rule.prec as u32 + 1).into());
 
-        let constants_type = self.check_static_types(&self.parser.prev, left_side, &logic_token);
+        let values_len = self.get_cur_chunk().values.len();
+        let right_side = self.get_cur_chunk().values.get(values_len - 1).convert();
+
+        let constants_type = self.check_static_types(&right_side, left_side, &logic_token);
 
         match constants_type {
             TokenType::INT => {
@@ -342,15 +353,18 @@ impl Compiler {
         let arithmetic_token = self.parser.prev.clone();
 
         let chunk = self.get_cur_chunk();
-        //let left_side = chunk.get_value(chunk.values.len() - 1).convert();
+        let left_side = chunk.get_value(chunk.values.len() - 1).convert();
 
         let rule = self.parser.get_rule(&arithmetic_token.token_type);
 
         self.parse((rule.prec as u32 + 1).into());
 
+        let values_len = self.get_cur_chunk().values.len();
+        
+        let right_side = self.get_cur_chunk().values.get(values_len - 1).convert();
+
         // fix checking type
-        //let constants_type = self.check_static_types(&self.parser.prev, left_side, &arithmetic_token);
-        let constants_type = TokenType::INT;
+        let constants_type = self.check_static_types(&right_side, left_side, &arithmetic_token);
 
         match constants_type {
             TokenType::INT => {
@@ -384,13 +398,8 @@ impl Compiler {
         };
     }
 
-    pub fn check_static_types(&self, a_token: &Token, b_type: TokenType, op: &Token) -> TokenType {
-        let a_token_type = match a_token.token_type {
-            TokenType::KEYWORD(keyword) => keyword.convert(),
-            token_type => token_type,
-        };
-
-        if !self.check_num_types(a_token_type, b_type) {
+    pub fn check_static_types(&self, a_token_type: &TokenType, b_type: TokenType, op: &Token) -> TokenType {
+        if !self.check_num_types(a_token_type.clone(), b_type) {
             errors::error_message("COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
                 b_type,
                 op.value.iter().collect::<String>(),
@@ -399,7 +408,7 @@ impl Compiler {
             ));
             std::process::exit(1);
         }
-        a_token_type
+        a_token_type.clone()
     }
 
     pub fn check_num_types(&self, a_type: TokenType, b_type: TokenType) -> bool {
@@ -526,6 +535,19 @@ impl Compiler {
     pub fn fn_call(&mut self) {
         self.parser.consume(TokenType::RIGHT_PAREN);
 
+        match self.parser.symbols[self.symbol_to_hold].output_type {
+            TokenType::INT => {
+                self.get_cur_chunk().push_value(Value::Int(0));
+            },
+            TokenType::FLOAT => {
+                self.get_cur_chunk().push_value(Value::Float(0.0));
+            },
+            output_type => {
+                errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
+                std::process::exit(1);
+            }
+        };
+
         self.emit_byte(OpCode::FUNCITON_CALL(self.symbol_to_hold), self.line);
     }
 
@@ -543,6 +565,12 @@ impl Compiler {
 
         self.parser.consume(TokenType::LEFT_PAREN);
         self.parser.consume(TokenType::RIGHT_PAREN);
+
+        match self.parser.cur.token_type {
+            TokenType::KEYWORD(keyword) => self.parser.consume(TokenType::KEYWORD(keyword)),
+            _ => {},
+        };
+
         self.parser.consume(TokenType::LEFT_BRACE);
 
         self.scope_depth += 1;
@@ -579,6 +607,7 @@ impl Compiler {
 
     pub fn return_stmt(&mut self) {
         self.expression();
+
         self.emit_byte(OpCode::RETURN, self.line);
     }
 
