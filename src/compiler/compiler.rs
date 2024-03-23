@@ -13,6 +13,7 @@ pub struct Symbol {
     name: String,
     symbol_type: TokenType,
     output_type: TokenType,
+    arg_count: usize,
 }
 
 #[derive(Debug)]
@@ -39,7 +40,10 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
+        (TokenType::COMMA, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+
         (TokenType::LEFT_PAREN, ParseRule { prefix: None, infix: Some(Compiler::fn_call), prec: Precedence::CALL }),
+        (TokenType::RIGHT_PAREN, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::INTERJ, ParseRule { prefix: Some(Compiler::negation), infix: None, prec: Precedence::NONE }),
 
@@ -148,7 +152,7 @@ impl Parser {
                     is_main_fn_found = true;
                 }
 
-                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::KEYWORD(Keywords::NULL) });
+                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
             }
 
             let symbol_len = symbols.len();
@@ -363,7 +367,6 @@ impl Compiler {
         
         let right_side = self.get_cur_chunk().values.get(values_len - 1).convert();
 
-        // fix checking type
         let constants_type = self.check_static_types(&right_side, left_side, &arithmetic_token);
 
         match constants_type {
@@ -441,20 +444,9 @@ impl Compiler {
             return
         } 
 
-        let pos = self.parser.symbols
-            .iter()
-            .enumerate()
-            .find(|(_, name)| *name.name == self.parser.prev.value.iter().collect::<String>())
-            .map(|(index, _)| index as i32)
-            .unwrap_or(-1);
+        let pos = self.get_fn_symbol_pos(self.parser.prev.value.iter().collect::<String>());
 
-        if pos == -1 {
-            errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined as function in this scope {}:", self.parser.prev.value.iter().collect::<String>(), self.line));
-            std::process::exit(1);
-        }
-
-        self.symbol_to_hold = pos as usize;
+        self.symbol_to_hold = pos;
     }
 
     pub fn var_assign(&mut self) {
@@ -506,6 +498,19 @@ impl Compiler {
             std::process::exit(1);
         }
 
+        match self.get_cur_locals()[pos as usize].local_type {
+            TokenType::INT => {
+                self.get_cur_chunk().push_value(Value::Int(0));
+            },
+            TokenType::FLOAT => {
+                self.get_cur_chunk().push_value(Value::Float(0.0));
+            },
+            local_type => {
+                errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.line));
+                std::process::exit(1);
+            }
+        };
+        
         self.emit_byte(OpCode::VAR_CALL(pos as usize), self.line);
     }
 
@@ -553,9 +558,24 @@ impl Compiler {
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type});
     }
 
-    pub fn fn_call(&mut self) {
-        self.parser.consume(TokenType::RIGHT_PAREN);
+    pub fn get_fn_symbol_pos(&mut self, fn_name: String) -> usize {
+        let pos = self.parser.symbols
+            .iter()
+            .enumerate()
+            .find(|(_, name)| *name.name == fn_name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
 
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as function in this scope {}:", fn_name, self.line));
+            std::process::exit(1);
+        }
+
+        pos as usize
+    }
+
+    pub fn fn_call(&mut self) {
         match self.parser.symbols[self.symbol_to_hold].output_type {
             TokenType::INT => {
                 self.get_cur_chunk().push_value(Value::Int(0));
@@ -569,7 +589,24 @@ impl Compiler {
             }
         };
 
-        self.emit_byte(OpCode::FUNCITON_CALL(self.symbol_to_hold), self.line);
+        self.emit_byte(OpCode::FUNCTION_CALL(self.symbol_to_hold), self.line);
+
+        let mut arg_count: usize = 0;
+        while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
+            arg_count += 1;
+
+            self.expression();
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
+        }
+        
+        if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
+            errors::error_message("COMPILER ERROR",
+            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.line));
+            std::process::exit(1);
+        }
+        self.parser.consume(TokenType::RIGHT_PAREN);
     }
 
     pub fn fn_declare(&mut self) {
@@ -580,12 +617,38 @@ impl Compiler {
             std::process::exit(1)
         }
 
-        let mut function = Function::new(name);
+        let mut function = Function::new(name.clone());
 
         self.parser.advance();
 
         self.parser.consume(TokenType::LEFT_PAREN);
+
+        while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
+            function.arg_count += 1;
+
+            self.parser.consume(TokenType::IDENTIFIER);
+            let arg_name = self.parser.prev.value.iter().collect::<String>();
+
+            self.parser.consume(TokenType::COLON);
+            let arg_type = match self.parser.cur.token_type {
+                TokenType::KEYWORD(keyword) => keyword.convert(),
+                _ => {
+                    errors::error_message("COMPILER ERROR", format!("Expected arg type after \":\" {}:", self.line));
+                    std::process::exit(1);
+                }
+            };
+            self.parser.advance();
+
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
+
+            function.locals.push(Local { name: arg_name, local_type: arg_type });
+        }
         self.parser.consume(TokenType::RIGHT_PAREN);
+
+        let pos = self.get_fn_symbol_pos(name);        
+        self.parser.symbols[pos].arg_count = function.arg_count;
 
         match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => {
@@ -632,15 +695,28 @@ impl Compiler {
     pub fn return_stmt(&mut self) {
         self.expression();
 
-        let value_type = self.get_cur_chunk().get_last_value().convert();
-        if value_type != self.cur_function.output_type {
-            errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
-                self.cur_function.output_type,
-                value_type,
-                self.line,
-            ));
-            std::process::exit(1);
+        if let OpCode::VAR_CALL(index) = self.get_cur_chunk().get_last_instruction().op {
+            let var_type = self.get_cur_locals()[index].local_type; 
+            if var_type != self.cur_function.output_type {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
+                    self.cur_function.output_type,
+                    var_type,
+                    self.line,
+                ));
+                std::process::exit(1);
+            }
+        }else {
+            let value_type = self.get_cur_chunk().get_last_value().convert();
+            if value_type != self.cur_function.output_type {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
+                    self.cur_function.output_type,
+                    value_type,
+                    self.line,
+                ));
+                std::process::exit(1);
+            }
         }
+
 
         self.emit_byte(OpCode::RETURN, self.line);
     }

@@ -15,7 +15,7 @@ pub struct Function {
     pub chunk: bytecode::Chunk,
     pub locals: Vec<Local>,
     pub output_type: TokenType,
-    arg_count: u32,
+    pub arg_count: usize,
     rc_counter: usize,
     index: usize,
 }
@@ -43,6 +43,10 @@ impl rc::Object for Function {
 
     fn get_value(&self) -> Value {
         Value::Chunk(self.chunk.clone())
+    }
+
+    fn get_arg_count(&self) -> usize {
+        self.arg_count
     }
 }
 

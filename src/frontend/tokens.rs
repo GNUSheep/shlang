@@ -77,6 +77,7 @@ impl Convert for Keywords {
     fn convert(&self) -> TokenType {
         match self {
             Keywords::INT => TokenType::INT,
+            Keywords::FLOAT => TokenType::FLOAT,
             Keywords::TRUE | Keywords::FALSE => TokenType::BOOL,
             _ => {
                 errors::conversion_error("Enum Keyword<_>", "TokenType");

@@ -9,6 +9,7 @@ pub trait Object {
     fn get_index(&self) -> usize;
 
     fn get_value(&self) -> value::Value;
+    fn get_arg_count(&self) -> usize;
 }
 
 pub struct ReferenceCounter {

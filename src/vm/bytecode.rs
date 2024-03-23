@@ -5,7 +5,7 @@ use crate::objects::functions;
 #[allow(non_camel_case_types)]
 pub enum OpCode {
     FUNCTION_DEC(functions::Function),
-    FUNCITON_CALL(usize),
+    FUNCTION_CALL(usize),
 
     VAR_CALL(usize),
     VAR_SET(usize),
@@ -76,6 +76,10 @@ impl Chunk {
 
     pub fn get_instruction(&self, offset: usize) -> &Instruction {
         &self.code[offset]
+    }
+
+    pub fn get_last_instruction(&self) -> &Instruction {
+        &self.code[self.code.len() - 1]
     }
 
     pub fn get_value(&self, index: usize) -> Value {
