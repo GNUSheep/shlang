@@ -81,4 +81,8 @@ impl Chunk {
     pub fn get_value(&self, index: usize) -> Value {
         self.values.get(index)
     }
+
+    pub fn get_last_value(&self) -> Value {
+        self.values.get(self.values.len() - 1)
+    }
 } 

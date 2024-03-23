@@ -1,6 +1,6 @@
 use crate::{
     objects::rc, vm::{bytecode, value::Value},
-    frontend::tokens::TokenType,
+    frontend::tokens::{TokenType, Keywords},
 };
 
 #[derive(Clone, Debug)]
@@ -14,6 +14,7 @@ pub struct Function {
     pub name: String,
     pub chunk: bytecode::Chunk,
     pub locals: Vec<Local>,
+    pub output_type: TokenType,
     arg_count: u32,
     rc_counter: usize,
     index: usize,
@@ -51,6 +52,7 @@ impl Function {
             name: name,
             chunk: bytecode::Chunk::new(),
             locals: vec![],
+            output_type: TokenType::KEYWORD(Keywords::NULL),
             arg_count: 0,
             rc_counter: 1,
             index: 0,

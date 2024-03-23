@@ -462,7 +462,7 @@ impl Compiler {
         self.parser.consume(TokenType::EQ);
 
         self.expression();
-
+        
         let pos = self.get_cur_locals()
         .iter()
         .enumerate()
@@ -473,6 +473,17 @@ impl Compiler {
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
             format!("Symbol: \"{}\" is not defined as var in this scope {}:", var_name, self.line));
+            std::process::exit(1);
+        }
+
+        let value_type = self.get_cur_chunk().get_last_value().convert();
+        let var_type = self.get_cur_locals()[pos as usize].local_type;
+        if value_type != var_type {
+            errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                var_type,
+                value_type,
+                self.line,
+            ));
             std::process::exit(1);
         }
 
@@ -524,6 +535,16 @@ impl Compiler {
         if self.parser.cur.token_type == TokenType::EQ {
             self.parser.advance();
             self.expression();
+
+            let value_type = self.get_cur_chunk().get_last_value().convert();
+            if value_type != var_type {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring var, expected: {:?} found: {:?} {}:",
+                    var_type,
+                    value_type,
+                    self.line,
+                ));
+                std::process::exit(1);
+            }
         }else {
             let pos = self.get_cur_chunk().push_value(Value::Null);
             self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
@@ -559,7 +580,7 @@ impl Compiler {
             std::process::exit(1)
         }
 
-        let function = Function::new(name);
+        let mut function = Function::new(name);
 
         self.parser.advance();
 
@@ -567,7 +588,10 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_PAREN);
 
         match self.parser.cur.token_type {
-            TokenType::KEYWORD(keyword) => self.parser.consume(TokenType::KEYWORD(keyword)),
+            TokenType::KEYWORD(keyword) => {
+                function.output_type = keyword.convert();
+                self.parser.consume(TokenType::KEYWORD(keyword))
+            },
             _ => {},
         };
 
@@ -607,6 +631,16 @@ impl Compiler {
 
     pub fn return_stmt(&mut self) {
         self.expression();
+
+        let value_type = self.get_cur_chunk().get_last_value().convert();
+        if value_type != self.cur_function.output_type {
+            errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
+                self.cur_function.output_type,
+                value_type,
+                self.line,
+            ));
+            std::process::exit(1);
+        }
 
         self.emit_byte(OpCode::RETURN, self.line);
     }
