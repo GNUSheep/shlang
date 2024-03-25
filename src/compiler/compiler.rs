@@ -576,6 +576,23 @@ impl Compiler {
     }
 
     pub fn fn_call(&mut self) {
+        let mut arg_count: usize = 0;
+        while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
+            arg_count += 1;
+
+            self.expression();
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
+        }
+        
+        if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
+            errors::error_message("COMPILER ERROR",
+            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.line));
+            std::process::exit(1);
+        }
+        self.parser.consume(TokenType::RIGHT_PAREN);
+
         if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
             self.emit_byte(OpCode::NATIVE_FN_CALL(self.symbol_to_hold), self.line);
         }else{
@@ -594,23 +611,6 @@ impl Compiler {
                 }
             };
         }
-
-        let mut arg_count: usize = 0;
-        while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
-            arg_count += 1;
-
-            self.expression();
-            if self.parser.cur.token_type == TokenType::COMMA {
-                self.parser.consume(TokenType::COMMA);
-            }
-        }
-        
-        if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
-            errors::error_message("COMPILER ERROR",
-            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.line));
-            std::process::exit(1);
-        }
-        self.parser.consume(TokenType::RIGHT_PAREN);
     }
 
     pub fn fn_declare(&mut self) {

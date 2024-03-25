@@ -96,11 +96,10 @@ impl VM {
                 
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
-                    let instr = self.get_instruction().clone();
-                    self.run_instruction(instr);
-
                     stack.push(self.frames[self.ip].stack.pop().unwrap());
                 }
+                stack.reverse();
+                
                 self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0 });
 
                 self.ip += 1;
@@ -111,11 +110,9 @@ impl VM {
                 
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
-                    let instr = self.get_instruction().clone();
-                    self.run_instruction(instr);
-
                     stack.push(self.frames[self.ip].stack.pop().unwrap());
                 }
+                stack.reverse();
 
                 let output = native_fn(stack);
                 self.frames[self.ip].stack.push(output);
