@@ -1,9 +1,9 @@
 use crate::vm::{
     bytecode::{Chunk, Instruction, OpCode},
-    value::{Value, ValuesArray},
+    value::Value,
 };
 
-use crate::objects::rc;
+use crate::objects::{rc, functions::NativeFn};
 use crate::compiler::errors;
 
 pub struct Frame {
@@ -33,7 +33,17 @@ impl VM {
         frame.chunk.get_instruction(frame.ip - 1)
     }
 
+    pub fn declare_native(&mut self) {
+        let natvies_fn = NativeFn::get_natives_fn();
+
+        for native in natvies_fn {
+            self.rc.push(Box::new(native));
+        }
+    }
+
     pub fn declare_all(&mut self, chunk: Chunk) -> Frame {
+        self.declare_native();
+
         let mut main_function_index: usize = 0;
         for instruction in chunk.code {
             match instruction.op {
@@ -96,7 +106,22 @@ impl VM {
                 self.ip += 1;
             },
     
-            OpCode::VAR_CALL(index) => {;
+            OpCode::NATIVE_FN_CALL(index) => {
+                let native_fn = self.rc.get_object(index).get_value().get_fn();
+                
+                let mut stack: Vec<Value> = vec![];
+                for _ in 0..self.rc.get_object(index).get_arg_count() {
+                    let instr = self.get_instruction().clone();
+                    self.run_instruction(instr);
+
+                    stack.push(self.frames[self.ip].stack.pop().unwrap());
+                }
+
+                let output = native_fn(stack);
+                self.frames[self.ip].stack.push(output);
+            }
+
+            OpCode::VAR_CALL(index) => {
                 let value = self.frames[self.ip].stack[index].clone();
                 self.frames[self.ip].stack.push(value);
             },
@@ -237,7 +262,7 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
             }
     
-            _ => errors::error_message("RUNTIME - VM ERROR", format!("Declare all - this error should never prints out")),
+            _ => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out")),
         }
     }
 }

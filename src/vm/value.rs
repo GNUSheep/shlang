@@ -14,6 +14,7 @@ pub enum Value {
     Null,
     String(String),
     Chunk(Chunk),
+    Fn(fn(Vec<Value>) -> Value),
 }
 
 impl Value {
@@ -52,6 +53,16 @@ impl Value {
             Value::Chunk(val) => return val.clone(),
             _ => {
                 errors::conversion_error("Enum Value<_>", "chunk");
+                std::process::exit(1);
+            },
+        }
+    }
+
+    pub fn get_fn(&self) -> fn(Vec<Value>) -> Value {
+        match self {
+            Value::Fn(val) => return *val,
+            _ => {
+                errors::conversion_error("Enum Value<_>", "fn");
                 std::process::exit(1);
             },
         }

@@ -4,6 +4,7 @@ mod frontend;
 mod vm;
 mod compiler;
 mod objects;
+mod std;
 
 #[cfg(feature = "debug_chunk")]
 mod debug;

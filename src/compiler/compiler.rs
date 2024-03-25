@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::functions::{Function, Local},
+    objects::functions::{Function, Local, NativeFn},
     vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
@@ -10,10 +10,10 @@ use super::errors;
 
 #[derive(PartialEq, Debug)]
 pub struct Symbol {
-    name: String,
-    symbol_type: TokenType,
-    output_type: TokenType,
-    arg_count: usize,
+    pub name: String,
+    pub symbol_type: TokenType,
+    pub output_type: TokenType,
+    pub arg_count: usize,
 }
 
 #[derive(Debug)]
@@ -136,14 +136,14 @@ impl Parser {
     }
 
     pub fn get_symbols(&mut self) {
-        let mut symbols: Vec<Symbol> = vec![];
+        let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
         let mut is_main_fn_found = false;
 
         for token_pair in self.tokens.clone().windows(2) {
             if token_pair[0].token_type == TokenType::KEYWORD(Keywords::FN) {
                 let fn_name = token_pair[1].value.iter().collect::<String>();
 
-                if symbols.iter().any(| symbol | symbol.name == fn_name ) {
+                if symbols.iter().any(| symbol | symbol.name == fn_name) {
                     errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token_pair[1].line));
                     std::process::exit(1);
                 }
@@ -576,20 +576,24 @@ impl Compiler {
     }
 
     pub fn fn_call(&mut self) {
-        match self.parser.symbols[self.symbol_to_hold].output_type {
-            TokenType::INT => {
-                self.get_cur_chunk().push_value(Value::Int(0));
-            },
-            TokenType::FLOAT => {
-                self.get_cur_chunk().push_value(Value::Float(0.0));
-            },
-            output_type => {
-                errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
-                std::process::exit(1);
-            }
-        };
+        if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
+            self.emit_byte(OpCode::NATIVE_FN_CALL(self.symbol_to_hold), self.line);
+        }else{
+            self.emit_byte(OpCode::FUNCTION_CALL(self.symbol_to_hold), self.line);
 
-        self.emit_byte(OpCode::FUNCTION_CALL(self.symbol_to_hold), self.line);
+            match self.parser.symbols[self.symbol_to_hold].output_type {
+                TokenType::INT => {
+                    self.get_cur_chunk().push_value(Value::Int(0));
+                },
+                TokenType::FLOAT => {
+                    self.get_cur_chunk().push_value(Value::Float(0.0));
+                },
+                output_type => {
+                    errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
+                    std::process::exit(1);
+                }
+            };
+        }
 
         let mut arg_count: usize = 0;
         while self.parser.cur.token_type != TokenType::RIGHT_PAREN {

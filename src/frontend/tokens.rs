@@ -35,6 +35,7 @@ pub enum TokenType {
     STRING,
     IDENTIFIER,
     KEYWORD(Keywords),
+    NATIVE_FN,
     INT,
     FLOAT,
     BOOL,
