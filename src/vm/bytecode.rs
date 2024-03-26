@@ -8,6 +8,7 @@ pub enum OpCode {
     FUNCTION_CALL(usize),
 
     NATIVE_FN_CALL(usize),
+    PRINT_FN_CALL(usize, usize),
 
     VAR_CALL(usize),
     VAR_SET(usize),

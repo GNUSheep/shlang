@@ -86,13 +86,15 @@ impl NativeFn {
     pub fn get_natives_symbols() -> Vec<Symbol> {
         vec![
             Symbol { name: "print".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
+            Symbol { name: "println".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
             Symbol { name: "test_returning".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 0 },
         ]
     }
 
     pub fn get_natives_fn() -> Vec<NativeFn> {
         vec![
-            NativeFn { name: "print".to_string(), function: std::print::println, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "print".to_string(), function: std::print::print, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "println".to_string(), function: std::print::println, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "test_returning".to_string(), function: std::print::test_returning, arg_count: 0, rc_counter: 1, index: 0 },
         ]
     }

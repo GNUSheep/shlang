@@ -4,6 +4,7 @@ use crate::compiler::errors;
 
 use crate::vm::bytecode::Chunk;
 
+use std::fmt::{self, format};
 pub use std::ops::Neg;
 
 #[derive(Debug, Clone)]
@@ -106,6 +107,21 @@ impl Convert for Value {
             Value::Bool(_) => TokenType::BOOL,
             _ => {
                 errors::conversion_error("Enum Value<_>", "TokenType");
+                std::process::exit(1);
+            },
+        }
+    }
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, output: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Float(val) => write!(output, "{}", val),
+            Value::Int(val) => write!(output, "{}", val),
+            Value::Bool(val) => write!(output, "{}", val),
+            Value::Null => write!(output, "null"),
+            v => {
+                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
                 std::process::exit(1);
             },
         }

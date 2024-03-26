@@ -118,6 +118,19 @@ impl VM {
                 self.frames[self.ip].stack.push(output);
             }
 
+            OpCode::PRINT_FN_CALL(index, arg_count) => {
+                let native_fn = self.rc.get_object(index).get_value().get_fn();
+
+                let mut stack: Vec<Value> = vec![];
+                for _ in 0..arg_count {
+                    stack.push(self.frames[self.ip].stack.pop().unwrap());
+                }
+                stack.reverse();
+
+                let output = native_fn(stack);
+                self.frames[self.ip].stack.push(output);
+            }
+
             OpCode::VAR_CALL(index) => {
                 let value = self.frames[self.ip].stack[index].clone();
                 self.frames[self.ip].stack.push(value);

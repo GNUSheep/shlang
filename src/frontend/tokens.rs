@@ -49,6 +49,7 @@ pub enum Keywords {
     VAR,
     INT,
     FLOAT,
+    BOOL,
     TRUE,
     FALSE,
     NULL,
@@ -63,6 +64,7 @@ impl std::str::FromStr for Keywords {
         match s {
             "var" => Ok(Keywords::VAR),
             "int" => Ok(Keywords::INT),
+            "bool" => Ok(Keywords::BOOL),
             "float" => Ok(Keywords::FLOAT),
             "true" => Ok(Keywords::TRUE),
             "false" => Ok(Keywords::FALSE),
@@ -79,7 +81,7 @@ impl Convert for Keywords {
         match self {
             Keywords::INT => TokenType::INT,
             Keywords::FLOAT => TokenType::FLOAT,
-            Keywords::TRUE | Keywords::FALSE => TokenType::BOOL,
+            Keywords::TRUE | Keywords::FALSE | Keywords::BOOL => TokenType::BOOL,
             _ => {
                 errors::conversion_error("Enum Keyword<_>", "TokenType");
                 std::process::exit(1);
