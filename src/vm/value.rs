@@ -7,7 +7,7 @@ use crate::vm::bytecode::Chunk;
 use std::fmt::{self, format};
 pub use std::ops::Neg;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Float(f64),
     Int(i64),
@@ -128,7 +128,7 @@ impl std::fmt::Display for Value {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ValuesArray {
     values: Vec<Value>,
 }

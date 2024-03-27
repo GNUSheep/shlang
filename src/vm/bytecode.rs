@@ -1,7 +1,7 @@
 use crate::vm::value::{Value, ValuesArray};
 use crate::objects::functions;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum OpCode {
     FUNCTION_DEC(functions::Function),
@@ -9,6 +9,9 @@ pub enum OpCode {
 
     NATIVE_FN_CALL(usize),
     PRINT_FN_CALL(usize, usize),
+
+    IF_STMT_OFFSET(usize),
+    JUMP(usize),
 
     VAR_CALL(usize),
     VAR_SET(usize),
@@ -48,13 +51,13 @@ pub enum OpCode {
     RETURN,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Instruction {
     pub op: OpCode,
     pub line: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Chunk { 
     pub code: Vec<Instruction>,
     pub values: ValuesArray,

@@ -741,8 +741,41 @@ impl Compiler {
             }
         }
 
-
         self.emit_byte(OpCode::RETURN, self.line);
+    }
+
+    pub fn if_stmt(&mut self) {
+        self.expression();
+
+        let index_jump_to_stmt = self.get_cur_chunk().code.len();
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+
+        self.parser.consume(TokenType::LEFT_BRACE);
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            self.compile_line();
+        }
+        let index_exit_if = self.get_cur_chunk().code.len();
+        self.emit_byte(OpCode::JUMP(0), self.line);
+
+        self.parser.consume(TokenType::RIGHT_BRACE);
+
+        let offset_stmt = (self.get_cur_chunk().code.len() - index_jump_to_stmt) - 1;
+        self.get_cur_chunk().code[index_jump_to_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+
+        if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::ELIF) || self.parser.cur.token_type == TokenType::KEYWORD(Keywords::ELSE) {
+            self.compile_line();
+        }
+
+        let offset_exit_if = (self.get_cur_chunk().code.len() - index_exit_if) - 1;
+        self.get_cur_chunk().code[index_exit_if] = Instruction { op: OpCode::JUMP(offset_exit_if), line: self.line };
+    }
+
+    pub fn else_stmt(&mut self) {
+        self.parser.consume(TokenType::LEFT_BRACE);
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            self.compile_line();
+        };
+        self.parser.consume(TokenType::RIGHT_BRACE);
     }
 
     fn compile_line(&mut self) {
@@ -754,6 +787,14 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::RETURN) => {
                 self.parser.advance();
                 self.return_stmt();
+            },
+            TokenType::KEYWORD(Keywords::IF) | TokenType::KEYWORD(Keywords::ELIF) => {
+                self.parser.advance();
+                self.if_stmt();
+            },
+            TokenType::KEYWORD(Keywords::ELSE) => {
+                self.parser.advance();
+                self.else_stmt();
             },
             _ => self.expression(),
         }

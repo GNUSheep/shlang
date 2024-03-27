@@ -5,13 +5,13 @@ use crate::{
     std,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Local {
     pub name: String,
     pub local_type: TokenType,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Function {
     pub name: String,
     pub chunk: bytecode::Chunk,

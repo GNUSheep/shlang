@@ -115,8 +115,10 @@ impl VM {
                 stack.reverse();
 
                 let output = native_fn(stack);
-                self.frames[self.ip].stack.push(output);
-            }
+                if output != Value::Null {
+                    self.frames[self.ip].stack.push(output);
+                }
+            },
 
             OpCode::PRINT_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_value().get_fn();
@@ -128,7 +130,19 @@ impl VM {
                 stack.reverse();
 
                 let output = native_fn(stack);
-                self.frames[self.ip].stack.push(output);
+                if output != Value::Null {
+                    self.frames[self.ip].stack.push(output);
+                }
+            },
+
+            OpCode::IF_STMT_OFFSET(offset) => {
+                if self.frames[self.ip].stack.pop().unwrap().get_bool() == false {
+                    self.frames[self.ip].ip += offset;
+                }
+            }
+
+            OpCode::JUMP(offset) => {
+                self.frames[self.ip].ip += offset;
             }
 
             OpCode::VAR_CALL(index) => {
