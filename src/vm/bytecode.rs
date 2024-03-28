@@ -16,6 +16,8 @@ pub enum OpCode {
     VAR_CALL(usize),
     VAR_SET(usize),
 
+    POP,
+
     CONSTANT_BOOL(usize),
     EQ_BOOL,
     NEG_EQ_BOOL,

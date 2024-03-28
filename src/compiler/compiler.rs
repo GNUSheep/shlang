@@ -6,7 +6,7 @@ use crate::{
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
-use super::errors;
+use super::errors::{self, error_message};
 
 #[derive(PartialEq, Debug)]
 pub struct Symbol {
@@ -37,6 +37,8 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::KEYWORD(Keywords::FN), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::VAR), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
+        (TokenType::KEYWORD(Keywords::IF), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
@@ -53,6 +55,9 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::GREATER_EQ, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
         (TokenType::LESS, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
         (TokenType::LESS_EQ, ParseRule { prefix: None, infix: Some(Compiler::logic_operator), prec: Precedence::COMPARISON }),
+        
+        (TokenType::KEYWORD(Keywords::AND), ParseRule { prefix: None, infix: Some(Compiler::and_op), prec: Precedence::AND }),
+        (TokenType::KEYWORD(Keywords::OR), ParseRule { prefix: None, infix: Some(Compiler::or_op), prec: Precedence::OR }),
 
         (TokenType::PLUS, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
         (TokenType::MINUS, ParseRule { prefix: Some(Compiler::negation), infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
@@ -745,7 +750,26 @@ impl Compiler {
     }
 
     pub fn if_stmt(&mut self) {
+        // handling errors, check static type, check if else and elif is used after if, variables scopes, or and
+        if self.parser.cur.token_type == TokenType::LEFT_BRACE {
+            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+                self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
+                self.line,
+            ));
+            std::process::exit(1);
+        }
+
         self.expression();
+
+        if self.parser.symbols.len() > 1 && 
+        self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::KEYWORD(Keywords::FN) &&
+        self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
+            errors::error_message("COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
+                self.parser.symbols[self.symbol_to_hold].output_type,
+                self.line,
+            ));
+            std::process::exit(1);
+        }
 
         let index_jump_to_stmt = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
@@ -778,6 +802,49 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_BRACE);
     }
 
+    pub fn and_op(&mut self) {
+        let index = self.get_cur_chunk().code.len();
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+
+        if self.parser.cur.token_type == TokenType::LEFT_BRACE {
+            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+                self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
+                self.line,
+            ));
+            std::process::exit(1);
+        };
+        self.parse(Precedence::AND);
+
+        let offset = (self.get_cur_chunk().code.len() - index) - 1;
+        self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.line };
+    }
+
+    pub fn or_op(&mut self) {
+        let index = self.get_cur_chunk().code.len();
+
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+
+        let index_or = self.get_cur_chunk().code.len();
+        self.emit_byte(OpCode::JUMP(0), self.line);
+
+        if self.parser.cur.token_type == TokenType::LEFT_BRACE {
+            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+                self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
+                self.line,
+            ));
+            std::process::exit(1);
+        };
+        let offset = (self.get_cur_chunk().code.len() - index) - 1;
+        println!("{:?}", self.get_cur_chunk().code[index]);
+        self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.line };
+
+        self.parse(Precedence::OR);
+
+        let offset = (self.get_cur_chunk().code.len() - index_or) - 1;
+        println!("{:?}", self.get_cur_chunk().code[index_or]);
+        self.get_cur_chunk().code[index_or] = Instruction { op: OpCode::JUMP(offset), line: self.line };
+    }
+
     fn compile_line(&mut self) {
         match self.parser.cur.token_type {
             TokenType::KEYWORD(Keywords::FN) | TokenType::KEYWORD(Keywords::VAR) => {
@@ -788,11 +855,23 @@ impl Compiler {
                 self.parser.advance();
                 self.return_stmt();
             },
-            TokenType::KEYWORD(Keywords::IF) | TokenType::KEYWORD(Keywords::ELIF) => {
+            TokenType::KEYWORD(Keywords::IF) => {
+                self.parser.advance();
+                self.if_stmt();
+            },
+            TokenType::KEYWORD(Keywords::ELIF) => {
+                if self.parser.prev.token_type != TokenType::RIGHT_BRACE {
+                    error_message("COMPILER ERROR", format!("Expected to find }} before ELIF statment {}:", self.line));
+                    std::process::exit(1);
+                }
                 self.parser.advance();
                 self.if_stmt();
             },
             TokenType::KEYWORD(Keywords::ELSE) => {
+                if self.parser.prev.token_type != TokenType::RIGHT_BRACE {
+                    error_message("COMPILER ERROR", format!("Expected to find }} before ELSE statment {}:", self.line));
+                    std::process::exit(1);
+                }
                 self.parser.advance();
                 self.else_stmt();
             },

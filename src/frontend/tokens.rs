@@ -56,6 +56,8 @@ pub enum Keywords {
     IF,
     ELIF,
     ELSE,
+    AND,
+    OR,
     FN,
     RETURN,
 }
@@ -75,6 +77,8 @@ impl std::str::FromStr for Keywords {
             "if" => Ok(Keywords::IF),
             "elif" => Ok(Keywords::ELIF),
             "else" => Ok(Keywords::ELSE),
+            "and" => Ok(Keywords::AND),
+            "or" => Ok(Keywords::OR),
             "fn" => Ok(Keywords::FN),
             "return" => Ok(Keywords::RETURN),
             _ => Err(()),

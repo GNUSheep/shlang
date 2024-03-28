@@ -136,13 +136,18 @@ impl VM {
             },
 
             OpCode::IF_STMT_OFFSET(offset) => {
+                println!("{:?}", self.frames[self.ip].stack);
                 if self.frames[self.ip].stack.pop().unwrap().get_bool() == false {
                     self.frames[self.ip].ip += offset;
                 }
-            }
+            },
 
             OpCode::JUMP(offset) => {
                 self.frames[self.ip].ip += offset;
+            },
+
+            OpCode::POP => {
+                self.frames[self.ip].stack.pop();
             }
 
             OpCode::VAR_CALL(index) => {
