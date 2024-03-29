@@ -4,7 +4,7 @@ use crate::compiler::errors;
 
 use crate::vm::bytecode::Chunk;
 
-use std::fmt::{self, format};
+use std::fmt;
 pub use std::ops::Neg;
 
 #[derive(Debug, Clone, PartialEq)]

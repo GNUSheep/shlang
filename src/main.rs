@@ -28,7 +28,6 @@ fn run(file_path: &String) {
     {
         debug::debug_chunk(&main_fn.chunk);
     }
-    println!("{:?}", main_chunk);
     let mut vm = vm::vm::VM::new();
     let main_frame = vm.declare_all(main_chunk);
 

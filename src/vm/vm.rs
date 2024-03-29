@@ -136,8 +136,8 @@ impl VM {
             },
 
             OpCode::IF_STMT_OFFSET(offset) => {
-                println!("{:?}", self.frames[self.ip].stack);
-                if self.frames[self.ip].stack.pop().unwrap().get_bool() == false {
+                let index = self.frames[self.ip].stack.len();
+                if self.frames[self.ip].stack[index - 1].get_bool() == false {
                     self.frames[self.ip].ip += offset;
                 }
             },

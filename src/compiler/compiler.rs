@@ -750,7 +750,6 @@ impl Compiler {
     }
 
     pub fn if_stmt(&mut self) {
-        // handling errors, check static type, check if else and elif is used after if, variables scopes, or and
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
             errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
@@ -774,10 +773,21 @@ impl Compiler {
         let index_jump_to_stmt = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
 
+        self.emit_byte(OpCode::POP, self.line);
+
         self.parser.consume(TokenType::LEFT_BRACE);
+
+        let local_counter = self.get_cur_locals().len();
+
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
             self.compile_line();
         }
+
+        for _ in 0..self.get_cur_locals().len() - local_counter {
+            self.emit_byte(OpCode::POP, self.line);
+            self.get_cur_locals().pop();
+        }
+
         let index_exit_if = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::JUMP(0), self.line);
 
@@ -785,6 +795,8 @@ impl Compiler {
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_jump_to_stmt) - 1;
         self.get_cur_chunk().code[index_jump_to_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+
+        self.emit_byte(OpCode::POP, self.line);
 
         if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::ELIF) || self.parser.cur.token_type == TokenType::KEYWORD(Keywords::ELSE) {
             self.compile_line();
@@ -813,6 +825,7 @@ impl Compiler {
             ));
             std::process::exit(1);
         };
+        self.emit_byte(OpCode::POP, self.line);
         self.parse(Precedence::AND);
 
         let offset = (self.get_cur_chunk().code.len() - index) - 1;
@@ -835,13 +848,13 @@ impl Compiler {
             std::process::exit(1);
         };
         let offset = (self.get_cur_chunk().code.len() - index) - 1;
-        println!("{:?}", self.get_cur_chunk().code[index]);
         self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.line };
+
+        self.emit_byte(OpCode::POP, self.line);
 
         self.parse(Precedence::OR);
 
         let offset = (self.get_cur_chunk().code.len() - index_or) - 1;
-        println!("{:?}", self.get_cur_chunk().code[index_or]);
         self.get_cur_chunk().code[index_or] = Instruction { op: OpCode::JUMP(offset), line: self.line };
     }
 
