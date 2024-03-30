@@ -146,9 +146,13 @@ impl VM {
                 self.frames[self.ip].ip += offset;
             },
 
+            OpCode::LOOP(offset) => {
+                self.frames[self.ip].ip -= offset;
+            },
+
             OpCode::POP => {
                 self.frames[self.ip].stack.pop();
-            }
+            },
 
             OpCode::VAR_CALL(index) => {
                 let value = self.frames[self.ip].stack[index].clone();
@@ -157,7 +161,7 @@ impl VM {
             OpCode::VAR_SET(index) => {
                 let value = self.frames[self.ip].stack.pop().unwrap();
                 self.frames[self.ip].stack[index] = value;
-            }
+            },
     
             OpCode::ADD_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
@@ -184,37 +188,37 @@ impl VM {
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
     
                 self.frames[self.ip].stack.push(Value::Bool(a==b));
-            }
+            },
             OpCode::NEG_EQ_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
     
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
-            }
+            },
             OpCode::GREATER_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
     
                 self.frames[self.ip].stack.push(Value::Bool(b>a));
-            }
+            },
             OpCode::EQ_GREATER_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
     
                 self.frames[self.ip].stack.push(Value::Bool(b>=a));
-            }
+            },
             OpCode::LESS_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
     
                 self.frames[self.ip].stack.push(Value::Bool(b<a));
-            }
+            },
             OpCode::EQ_LESS_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
     
                 self.frames[self.ip].stack.push(Value::Bool(b<=a));
-            }
+            },
             
             OpCode::ADD_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
@@ -241,37 +245,37 @@ impl VM {
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
     
                 self.frames[self.ip].stack.push(Value::Bool(a==b));
-            }
+            },
             OpCode::NEG_EQ_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
     
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
-            }
+            },
             OpCode::GREATER_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
     
                 self.frames[self.ip].stack.push(Value::Bool(b>a));
-            }
+            },
             OpCode::EQ_GREATER_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
     
                 self.frames[self.ip].stack.push(Value::Bool(b>=a));
-            }
+            },
             OpCode::LESS_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
     
                 self.frames[self.ip].stack.push(Value::Bool(b<a));
-            }
+            },
             OpCode::EQ_LESS_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
     
                 self.frames[self.ip].stack.push(Value::Bool(b<=a));
-            }
+            },
     
             OpCode::NEGATE => {
                 let a = self.frames[self.ip].stack.pop().unwrap();
@@ -283,13 +287,13 @@ impl VM {
                 let b = self.frames[self.ip].stack.pop().unwrap().get_bool();
     
                 self.frames[self.ip].stack.push(Value::Bool(a==b));
-            }
+            },
             OpCode::NEG_EQ_BOOL => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_bool();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_bool();
     
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
-            }
+            },
     
             _ => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out")),
         }

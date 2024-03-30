@@ -13,6 +13,8 @@ pub enum OpCode {
     IF_STMT_OFFSET(usize),
     JUMP(usize),
 
+    LOOP(usize),
+
     VAR_CALL(usize),
     VAR_SET(usize),
 

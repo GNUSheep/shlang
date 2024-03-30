@@ -39,6 +39,9 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
 
         (TokenType::KEYWORD(Keywords::IF), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
+        (TokenType::KEYWORD(Keywords::WHILE), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::KEYWORD(Keywords::FOR), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
@@ -814,6 +817,132 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_BRACE);
     }
 
+    pub fn while_stmt(&mut self) {
+        let loop_start_index = self.get_cur_chunk().code.len(); 
+
+        if self.parser.cur.token_type == TokenType::LEFT_BRACE {
+            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+                self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
+                self.line,
+            ));
+            std::process::exit(1);
+        }
+
+        self.expression();
+
+        if self.parser.symbols.len() > 1 && 
+        self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::KEYWORD(Keywords::FN) &&
+        self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
+            errors::error_message("COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
+                self.parser.symbols[self.symbol_to_hold].output_type,
+                self.line,
+            ));
+            std::process::exit(1);
+        };
+
+        let index_exit_stmt = self.get_cur_chunk().code.len();
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+        self.emit_byte(OpCode::POP, self.line);
+
+        self.parser.consume(TokenType::LEFT_BRACE);
+
+        let local_counter = self.get_cur_locals().len();
+
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            self.compile_line();
+        }
+
+        for _ in 0..self.get_cur_locals().len() - local_counter {
+            self.emit_byte(OpCode::POP, self.line);
+            self.get_cur_locals().pop();
+        }
+
+        self.parser.consume(TokenType::RIGHT_BRACE);
+
+        let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
+        self.emit_byte(OpCode::LOOP(offset_loop), self.line);
+
+        let offset_stmt = (self.get_cur_chunk().code.len() - index_exit_stmt) - 1;
+        self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+
+        self.emit_byte(OpCode::POP, self.line);
+    }
+
+    pub fn for_stmt(&mut self) {
+        self.parser.consume(TokenType::IDENTIFIER);
+
+        let identifier = self.parser.prev.value.iter().collect::<String>();
+        self.get_cur_locals().push(Local { name: identifier, local_type: TokenType::INT });
+
+        self.parser.consume(TokenType::KEYWORD(Keywords::IN));
+
+        // in future there need to check if I got a range or vec list to iterate on.
+        self.parser.consume(TokenType::LEFT_PAREN);
+        
+        self.expression();
+
+        self.parser.consume(TokenType::COMMA);
+
+        self.expression();
+
+        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT });
+
+        self.parser.consume(TokenType::RIGHT_PAREN);
+
+        let loop_start_index = self.get_cur_chunk().code.len();
+
+        // check if condition is still true
+        let len_locals = self.get_cur_locals().len();
+
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.line);
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 1), self.line);
+
+        self.emit_byte(OpCode::NEG_EQ_INT, self.line);
+        //
+
+        let index_exit_stmt = self.get_cur_chunk().code.len();
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+        self.emit_byte(OpCode::POP, self.line);
+
+        self.parser.consume(TokenType::LEFT_BRACE);
+
+        let local_counter = self.get_cur_locals().len();
+
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            self.compile_line();
+        }
+        self.parser.consume(TokenType::RIGHT_BRACE);
+
+        // adding
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.line);
+
+        let pos = self.get_cur_chunk().push_value(Value::Int(1));
+        self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
+
+        self.emit_byte(OpCode::ADD_INT, self.line);
+
+        self.emit_byte(OpCode::VAR_SET(len_locals - 2), self.line);
+        //
+
+        for _ in 0..self.get_cur_locals().len() - local_counter {
+            self.emit_byte(OpCode::POP, self.line);
+            self.get_cur_locals().pop();
+        }
+
+        let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
+        self.emit_byte(OpCode::LOOP(offset_loop), self.line);
+
+        let offset_stmt = (self.get_cur_chunk().code.len() - index_exit_stmt) - 1;
+        self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+
+        self.emit_byte(OpCode::POP, self.line);
+
+        for _ in 0..2{
+            self.emit_byte(OpCode::POP, self.line);
+            self.get_cur_locals().pop();
+        }
+    }
+
     pub fn and_op(&mut self) {
         let index = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
@@ -887,6 +1016,14 @@ impl Compiler {
                 }
                 self.parser.advance();
                 self.else_stmt();
+            },
+            TokenType::KEYWORD(Keywords::WHILE) => {
+                self.parser.advance();
+                self.while_stmt();
+            },
+            TokenType::KEYWORD(Keywords::FOR) => {
+                self.parser.advance();
+                self.for_stmt();
             },
             _ => self.expression(),
         }
