@@ -168,6 +168,7 @@ impl Scanner {
             '*' => TokenType::STAR,
             ':' => TokenType::COLON,
             '/' => TokenType::SLASH,
+            '%' => TokenType::MOD,
             '!' => {
                 if self.peek() == '=' {
                     self.next();

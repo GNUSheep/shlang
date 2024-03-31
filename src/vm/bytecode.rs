@@ -14,6 +14,7 @@ pub enum OpCode {
     JUMP(usize),
 
     LOOP(usize),
+    BREAK,
 
     VAR_CALL(usize),
     VAR_SET(usize),
@@ -29,6 +30,7 @@ pub enum OpCode {
     SUB_FLOAT,
     MUL_FLOAT,
     DIV_FLOAT,
+    MOD_FLOAT,
     EQ_FLOAT,
     NEG_EQ_FLOAT,
     GREATER_FLOAT,
@@ -41,6 +43,7 @@ pub enum OpCode {
     SUB_INT,
     MUL_INT,
     DIV_INT,
+    MOD_INT,
     EQ_INT,
     NEG_EQ_INT,
     GREATER_INT,

@@ -16,6 +16,7 @@ pub struct VM {
     pub frames: Vec<Frame>,
     pub ip: usize,
     pub rc: rc::ReferenceCounter,
+    break_loop: bool,
 }
 
 impl VM {
@@ -24,6 +25,7 @@ impl VM {
             frames: vec![],
             ip: 0,
             rc: rc::ReferenceCounter::init(),
+            break_loop: false,
         }
     }
 
@@ -137,8 +139,9 @@ impl VM {
 
             OpCode::IF_STMT_OFFSET(offset) => {
                 let index = self.frames[self.ip].stack.len();
-                if self.frames[self.ip].stack[index - 1].get_bool() == false {
+                if self.frames[self.ip].stack[index - 1].get_bool() == false || self.break_loop {
                     self.frames[self.ip].ip += offset;
+                    self.break_loop = false;
                 }
             },
 
@@ -149,6 +152,10 @@ impl VM {
             OpCode::LOOP(offset) => {
                 self.frames[self.ip].ip -= offset;
             },
+
+            OpCode::BREAK => {
+                self.break_loop = true;
+            }
 
             OpCode::POP => {
                 self.frames[self.ip].stack.pop();
@@ -183,6 +190,11 @@ impl VM {
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
                 self.frames[self.ip].stack.push(Value::Float(b/a));
             },
+            OpCode::MOD_FLOAT => {
+                let a = self.frames[self.ip].stack.pop().unwrap().get_float();
+                let b = self.frames[self.ip].stack.pop().unwrap().get_float();
+                self.frames[self.ip].stack.push(Value::Float(b%a));
+            },       
             OpCode::EQ_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
@@ -239,6 +251,11 @@ impl VM {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
                 self.frames[self.ip].stack.push(Value::Int(b/a));
+            },
+            OpCode::MOD_INT => {
+                let a = self.frames[self.ip].stack.pop().unwrap().get_int();
+                let b = self.frames[self.ip].stack.pop().unwrap().get_int();
+                self.frames[self.ip].stack.push(Value::Int(b%a));
             },
             OpCode::EQ_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();

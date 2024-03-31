@@ -8,6 +8,20 @@ use crate::frontend::tokens::{Token, TokenType, Keywords};
 
 use super::errors::{self, error_message};
 
+pub struct LoopInfo {
+    pub start: usize,
+    pub locals_start: usize,
+}
+
+impl LoopInfo {
+    pub fn new() -> Self {
+        LoopInfo {
+            start: 0,
+            locals_start: 0,
+        }
+    }
+}
+
 #[derive(PartialEq, Debug)]
 pub struct Symbol {
     pub name: String,
@@ -41,6 +55,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
 
         (TokenType::KEYWORD(Keywords::WHILE), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::FOR), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::KEYWORD(Keywords::BREAK), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
@@ -66,6 +81,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::MINUS, ParseRule { prefix: Some(Compiler::negation), infix: Some(Compiler::arithmetic), prec: Precedence::TERM }),
         (TokenType::STAR, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
         (TokenType::SLASH, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
+        (TokenType::MOD, ParseRule { prefix: None, infix: Some(Compiler::arithmetic), prec: Precedence::FACTOR }),
 
         (TokenType::EOF, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
     ])
@@ -191,6 +207,7 @@ pub struct Compiler {
     scope_depth: u32,
     line: u32,
     symbol_to_hold: usize,
+    loop_info: LoopInfo,
 }
 
 impl Compiler {
@@ -208,6 +225,7 @@ impl Compiler {
             scope_depth: 0,
             line: 0,
             symbol_to_hold: 0,
+            loop_info: LoopInfo::new(),
         }
     }
 
@@ -385,6 +403,7 @@ impl Compiler {
                     TokenType::MINUS => self.emit_byte(OpCode::SUB_INT, self.line),
                     TokenType::STAR => self.emit_byte(OpCode::MUL_INT, self.line),
                     TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, self.line),
+                    TokenType::MOD => self.emit_byte(OpCode::MOD_INT, self.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -397,6 +416,7 @@ impl Compiler {
                     TokenType::MINUS => self.emit_byte(OpCode::SUB_FLOAT, self.line),
                     TokenType::STAR => self.emit_byte(OpCode::MUL_FLOAT, self.line),
                     TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, self.line),
+                    TokenType::MOD => self.emit_byte(OpCode::MOD_FLOAT, self.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -818,7 +838,7 @@ impl Compiler {
     }
 
     pub fn while_stmt(&mut self) {
-        let loop_start_index = self.get_cur_chunk().code.len(); 
+        let loop_start_index = self.get_cur_chunk().code.len();
 
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
             errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
@@ -847,10 +867,14 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
+        self.scope_depth += 1;
 
+        self.loop_info.start = loop_start_index;
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
             self.compile_line();
         }
+        self.loop_info.start = loop_start_index;
+        self.scope_depth -= 1;
 
         for _ in 0..self.get_cur_locals().len() - local_counter {
             self.emit_byte(OpCode::POP, self.line);
@@ -887,6 +911,27 @@ impl Compiler {
 
         self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT });
 
+        if self.parser.cur.token_type != TokenType::RIGHT_PAREN {
+            self.parser.consume(TokenType::COMMA);
+
+            self.expression();
+
+            match self.get_cur_chunk().get_last_instruction().op {
+                OpCode::FUNCTION_CALL(_) => {
+                    errors::error_message("COMPILING ERROR", format!("Functions cannot be used as STEP BY argument {}:",
+                        self.line,
+                    ));
+                    std::process::exit(1);
+                },
+                _ => {},
+            }
+        }else {
+            let pos = self.get_cur_chunk().push_value(Value::Int(1));
+            self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
+        }
+
+        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT });
+
         self.parser.consume(TokenType::RIGHT_PAREN);
 
         let loop_start_index = self.get_cur_chunk().code.len();
@@ -894,8 +939,8 @@ impl Compiler {
         // check if condition is still true
         let len_locals = self.get_cur_locals().len();
 
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.line);
         self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.line);
-        self.emit_byte(OpCode::VAR_CALL(len_locals - 1), self.line);
 
         self.emit_byte(OpCode::NEG_EQ_INT, self.line);
         //
@@ -907,21 +952,27 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
+        self.scope_depth += 1;
 
+        self.loop_info.locals_start = local_counter;
+        self.loop_info.start = loop_start_index;
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
             self.compile_line();
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
 
-        // adding
-        self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.line);
+        self.loop_info.start = loop_start_index;
+        self.loop_info.locals_start = local_counter;
+        self.scope_depth -= 1;
 
-        let pos = self.get_cur_chunk().push_value(Value::Int(1));
-        self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
+        // adding
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.line);
+
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 1), self.line);
 
         self.emit_byte(OpCode::ADD_INT, self.line);
 
-        self.emit_byte(OpCode::VAR_SET(len_locals - 2), self.line);
+        self.emit_byte(OpCode::VAR_SET(len_locals - 3), self.line);
         //
 
         for _ in 0..self.get_cur_locals().len() - local_counter {
@@ -937,7 +988,7 @@ impl Compiler {
 
         self.emit_byte(OpCode::POP, self.line);
 
-        for _ in 0..2{
+        for _ in 0..3{
             self.emit_byte(OpCode::POP, self.line);
             self.get_cur_locals().pop();
         }
@@ -1025,6 +1076,42 @@ impl Compiler {
                 self.parser.advance();
                 self.for_stmt();
             },
+            TokenType::KEYWORD(Keywords::BREAK) => {
+                self.parser.advance();
+
+                if self.scope_depth <= 1 {
+                    errors::error_message("COMPILING ERROR", format!("BREAK statment used out of loop {}:",
+                        self.line,
+                    ));
+                    std::process::exit(1);
+                };
+
+                self.emit_byte(OpCode::BREAK, self.line);
+
+                let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
+                self.emit_byte(OpCode::LOOP(offset), self.line);
+            },
+            TokenType::KEYWORD(Keywords::CONTINUE) => {
+                self.parser.advance();
+
+                if self.scope_depth <= 1 {
+                    errors::error_message("COMPILING ERROR", format!("CONTINUE statment used out of loop {}:",
+                        self.line,
+                    ));
+                    std::process::exit(1);
+                };
+
+                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 3), self.line);
+
+                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 1), self.line);
+        
+                self.emit_byte(OpCode::ADD_INT, self.line);
+        
+                self.emit_byte(OpCode::VAR_SET(self.loop_info.locals_start - 3), self.line);
+
+                let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
+                self.emit_byte(OpCode::LOOP(offset), self.line);
+            },
             _ => self.expression(),
         }
     }
@@ -1037,6 +1124,7 @@ impl Compiler {
                 break;
             }
             self.compile_line();
+            self.loop_info = LoopInfo::new();
         }
 
         self.get_cur_chunk().clone()
