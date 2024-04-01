@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::functions::{Function, Local, NativeFn},
+    objects::{functions::{Function, Local, NativeFn}, structs::{Struct, StructInstance}},
     vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
@@ -179,6 +179,17 @@ impl Parser {
                 symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
             }
 
+            if token_pair[0].token_type == TokenType::KEYWORD(Keywords::STRUCT) {
+                let struct_name = token_pair[1].value.iter().collect::<String>();
+
+                if symbols.iter().any(| symbol | symbol.name == struct_name) {
+                    errors::error_message("COMPILER ERROR", format!("Struct: \"{}\" is already defined {}:", struct_name, token_pair[1].line));
+                    std::process::exit(1);
+                }
+
+                symbols.push(Symbol{name: struct_name, symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+            }
+
             let symbol_len = symbols.len();
             match token_pair[0].token_type {
                 TokenType::KEYWORD(Keywords::INT) => symbols[symbol_len - 1].output_type = TokenType::INT,
@@ -208,6 +219,7 @@ pub struct Compiler {
     line: u32,
     symbol_to_hold: usize,
     loop_info: LoopInfo,
+    structs: HashMap<String, Struct>,
 }
 
 impl Compiler {
@@ -226,6 +238,7 @@ impl Compiler {
             line: 0,
             symbol_to_hold: 0,
             loop_info: LoopInfo::new(),
+            structs: HashMap::new(),
         }
     }
 
@@ -240,7 +253,7 @@ impl Compiler {
     pub fn negation(&mut self) {
         let negation_token = self.parser.prev.clone();
 
-        self.parse(Precedence::UNARY);
+        self.parse(Precedence::UNARY, false);
 
         match negation_token.token_type {
             TokenType::MINUS => self.emit_byte(OpCode::NEGATE, self.line),
@@ -260,7 +273,7 @@ impl Compiler {
 
         let rule = self.parser.get_rule(&logic_token.token_type);
 
-        self.parse((rule.prec as u32 + 1).into());
+        self.parse((rule.prec as u32 + 1).into(), false);
 
         let values_len = self.get_cur_chunk().values.len();
         let right_side = self.get_cur_chunk().values.get(values_len - 1).convert();
@@ -388,7 +401,7 @@ impl Compiler {
 
         let rule = self.parser.get_rule(&arithmetic_token.token_type);
 
-        self.parse((rule.prec as u32 + 1).into());
+        self.parse((rule.prec as u32 + 1).into(), false);
 
         let values_len = self.get_cur_chunk().values.len();
         
@@ -451,7 +464,7 @@ impl Compiler {
     }
 
     pub fn expression(&mut self) {
-        self.parse(Precedence::ASSIGNMENT);
+        self.parse(Precedence::ASSIGNMENT, false);
     }
 
     pub fn block(&mut self) {
@@ -465,6 +478,11 @@ impl Compiler {
     pub fn identifier(&mut self) {
         if self.parser.cur.token_type == TokenType::EQ {
             self.var_assign();
+            return
+        }
+
+        if self.parser.cur.token_type == TokenType::DOT {
+            self.instance_call();
             return
         }
 
@@ -559,7 +577,8 @@ impl Compiler {
         match self.parser.cur.token_type {
             TokenType::KEYWORD(Keywords::INT) |
             TokenType::KEYWORD(Keywords::FLOAT) |
-            TokenType::KEYWORD(Keywords::BOOL) => {},
+            TokenType::KEYWORD(Keywords::BOOL) |
+            TokenType::IDENTIFIER => {},
             _ => {
                 errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
                 std::process::exit(1);
@@ -568,12 +587,25 @@ impl Compiler {
 
         let var_type = match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => keyword.convert(),
+            TokenType::IDENTIFIER => {
+                let pos = self.get_struct_symbol_pos(self.parser.cur.value.iter().collect::<String>());
+
+                TokenType::STRUCT(pos)
+            }
             _ => {
                 errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
                 std::process::exit(1);
             },
         };
         self.parser.advance();
+
+        match var_type {
+            TokenType::STRUCT(pos) => {
+                self.instance_declare(pos, var_name);
+                return
+            }
+            _ => {},
+        }
 
         if self.parser.cur.token_type == TokenType::EQ {
             self.parser.advance();
@@ -596,17 +628,159 @@ impl Compiler {
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type});
     }
 
+    pub fn instance_call(&mut self) {
+        let name = self.parser.prev.value.iter().collect::<String>();
+
+        self.parser.consume(TokenType::DOT);
+
+        let pos = self.get_instance_symbol_pos(name.clone());
+
+        self.parser.consume(TokenType::IDENTIFIER);
+        let field_name = self.parser.prev.value.iter().collect::<String>();
+
+        let struct_name = match self.parser.symbols[pos].output_type {
+            TokenType::STRUCT(pos) => {
+                self.parser.symbols[pos].name.clone()
+            },
+            _ => panic!(),
+        };
+
+        let value_index = self.structs.get(&struct_name).unwrap().locals
+            .iter()
+            .enumerate()
+            .find(|(_, name)| *name.name == field_name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        // error
+
+        self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, value_index as usize), self.line)
+    }
+
+    pub fn instance_declare(&mut self, pos: usize, name: String) {
+        if self.parser.cur.token_type != TokenType::EQ {
+            errors::error_message("COMPILING ERROR", format!("Struct cannot be left undeclared {}:",
+                self.line,
+            ));
+            std::process::exit(1);
+        }
+        self.parser.consume(TokenType::EQ);
+
+        self.parser.consume(TokenType::LEFT_BRACE);
+        
+        let mut field_counts = 0;
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            field_counts += 1;
+            self.expression();
+        }
+        self.parser.consume(TokenType::RIGHT_BRACE);
+
+        let instance_obj = StructInstance::new(pos);
+
+        if field_counts != self.parser.symbols[pos].arg_count {
+            errors::error_message("COMPILER ERROR",
+            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.line));
+            std::process::exit(1);
+        }
+
+        self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.line);
+        self.parser.symbols.push(Symbol { name: name, symbol_type: TokenType::KEYWORD(Keywords::INSTANCE), output_type: TokenType::STRUCT(pos), arg_count: field_counts });
+    }
+
+    pub fn struct_declare(&mut self) {
+        self.parser.consume(TokenType::IDENTIFIER);
+
+        let name = self.parser.prev.value.iter().collect::<String>();
+
+        if self.scope_depth != 0 {
+            errors::error_message("COMPILE ERROR", format!("Struct \"{}\" declaration inside bounds {}:", name, self.line));
+            std::process::exit(1)
+        }
+
+        let mut struct_obj = Struct::new(name.clone());
+
+        self.scope_depth += 1;
+
+        self.parser.consume(TokenType::LEFT_BRACE);
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            self.parser.consume(TokenType::IDENTIFIER);
+
+            let field_name = self.parser.prev.value.iter().collect::<String>();
+
+            self.parser.consume(TokenType::COLON);
+
+            let field_type = match self.parser.cur.token_type {
+                TokenType::KEYWORD(keyword) => keyword.convert(),
+                _ => {
+                    errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.line));
+                    std::process::exit(1);
+                },
+            };
+            self.parser.advance();
+
+            self.parser.consume(TokenType::COMMA);
+
+            struct_obj.locals.push(Local { name: field_name, local_type: field_type });
+        }
+        self.parser.consume(TokenType::RIGHT_BRACE);
+
+        struct_obj.field_count = struct_obj.locals.len();
+
+        let pos = self.get_struct_symbol_pos(name.clone());
+        self.parser.symbols[pos].arg_count = struct_obj.field_count;
+
+        self.structs.insert(name, struct_obj.clone());
+
+        self.emit_byte(OpCode::STRUCT_DEC(struct_obj), self.line);
+
+        self.scope_depth -= 1;
+    }
+
     pub fn get_fn_symbol_pos(&mut self, fn_name: String) -> usize {
         let pos = self.parser.symbols
             .iter()
             .enumerate()
-            .find(|(_, name)| *name.name == fn_name)
+            .find(|(_, name)| *name.name == fn_name && name.symbol_type != TokenType::KEYWORD(Keywords::STRUCT))
             .map(|(index, _)| index as i32)
             .unwrap_or(-1);
 
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
             format!("Symbol: \"{}\" is not defined as function in this scope {}:", fn_name, self.line));
+            std::process::exit(1);
+        }
+
+        pos as usize
+    }
+
+    pub fn get_struct_symbol_pos(&mut self, struct_name: String) -> usize {
+        let pos = self.parser.symbols
+            .iter()
+            .enumerate()
+            .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as struct in this scope {}:", struct_name, self.line));
+            std::process::exit(1);
+        }
+
+        pos as usize
+    }
+
+    pub fn get_instance_symbol_pos(&mut self, instance_name: String) -> usize {
+        let pos = self.parser.symbols
+            .iter()
+            .enumerate()
+            .find(|(_, name)| *name.name == instance_name && name.symbol_type == TokenType::KEYWORD(Keywords::INSTANCE))
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as instance in this scope {}:", instance_name, self.line));
             std::process::exit(1);
         }
 
@@ -802,9 +976,7 @@ impl Compiler {
 
         let local_counter = self.get_cur_locals().len();
 
-        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
-            self.compile_line();
-        }
+        self.block();
 
         for _ in 0..self.get_cur_locals().len() - local_counter {
             self.emit_byte(OpCode::POP, self.line);
@@ -813,8 +985,6 @@ impl Compiler {
 
         let index_exit_if = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::JUMP(0), self.line);
-
-        self.parser.consume(TokenType::RIGHT_BRACE);
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_jump_to_stmt) - 1;
         self.get_cur_chunk().code[index_jump_to_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
@@ -870,9 +1040,9 @@ impl Compiler {
         self.scope_depth += 1;
 
         self.loop_info.start = loop_start_index;
-        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
-            self.compile_line();
-        }
+
+        self.block();
+
         self.loop_info.start = loop_start_index;
         self.scope_depth -= 1;
 
@@ -880,8 +1050,6 @@ impl Compiler {
             self.emit_byte(OpCode::POP, self.line);
             self.get_cur_locals().pop();
         }
-
-        self.parser.consume(TokenType::RIGHT_BRACE);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
         self.emit_byte(OpCode::LOOP(offset_loop), self.line);
@@ -956,10 +1124,8 @@ impl Compiler {
 
         self.loop_info.locals_start = local_counter;
         self.loop_info.start = loop_start_index;
-        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
-            self.compile_line();
-        }
-        self.parser.consume(TokenType::RIGHT_BRACE);
+
+        self.block();
 
         self.loop_info.start = loop_start_index;
         self.loop_info.locals_start = local_counter;
@@ -1006,7 +1172,7 @@ impl Compiler {
             std::process::exit(1);
         };
         self.emit_byte(OpCode::POP, self.line);
-        self.parse(Precedence::AND);
+        self.parse(Precedence::AND, false);
 
         let offset = (self.get_cur_chunk().code.len() - index) - 1;
         self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.line };
@@ -1032,7 +1198,7 @@ impl Compiler {
 
         self.emit_byte(OpCode::POP, self.line);
 
-        self.parse(Precedence::OR);
+        self.parse(Precedence::OR, false);
 
         let offset = (self.get_cur_chunk().code.len() - index_or) - 1;
         self.get_cur_chunk().code[index_or] = Instruction { op: OpCode::JUMP(offset), line: self.line };
@@ -1047,6 +1213,10 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::RETURN) => {
                 self.parser.advance();
                 self.return_stmt();
+            },
+            TokenType::KEYWORD(Keywords::STRUCT) => {
+                self.parser.advance();
+                self.struct_declare();
             },
             TokenType::KEYWORD(Keywords::IF) => {
                 self.parser.advance();
@@ -1126,11 +1296,10 @@ impl Compiler {
             self.compile_line();
             self.loop_info = LoopInfo::new();
         }
-
         self.get_cur_chunk().clone()
     }
 
-    pub fn parse(&mut self, prec: Precedence) {
+    pub fn parse(&mut self, prec: Precedence, to_pop: bool) {
         self.parser.advance();
 
         if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
@@ -1170,6 +1339,10 @@ impl Compiler {
                     std::process::exit(1);
                 },
             }
+        }
+        
+        if to_pop {
+            self.emit_byte(OpCode::POP, self.line);
         }
     }
 

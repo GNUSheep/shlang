@@ -1,5 +1,5 @@
 use crate::vm::value::{Value, ValuesArray};
-use crate::objects::functions;
+use crate::objects::{functions, structs};
 
 #[derive(Debug, Clone, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -9,6 +9,10 @@ pub enum OpCode {
 
     NATIVE_FN_CALL(usize),
     PRINT_FN_CALL(usize, usize),
+
+    STRUCT_DEC(structs::Struct),
+    INSTANCE_DEC(structs::StructInstance),
+    GET_INSTANCE_FIELD(usize, usize),
 
     IF_STMT_OFFSET(usize),
     JUMP(usize),

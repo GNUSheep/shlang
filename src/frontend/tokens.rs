@@ -37,6 +37,7 @@ pub enum TokenType {
     IDENTIFIER,
     KEYWORD(Keywords),
     NATIVE_FN,
+    STRUCT(usize),
     INT,
     FLOAT,
     BOOL,
@@ -65,6 +66,8 @@ pub enum Keywords {
     CONTINUE,
     IN,
     FN,
+    STRUCT,
+    INSTANCE,
     RETURN,
 }
 
@@ -91,6 +94,8 @@ impl std::str::FromStr for Keywords {
             "continue" => Ok(Keywords::CONTINUE),
             "in" => Ok(Keywords::IN),
             "fn" => Ok(Keywords::FN),
+            "struct" => Ok(Keywords::STRUCT),
+            "instance" => Ok(Keywords::INSTANCE),
             "return" => Ok(Keywords::RETURN),
             _ => Err(()),
         }

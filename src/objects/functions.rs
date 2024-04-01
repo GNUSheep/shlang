@@ -43,8 +43,8 @@ impl rc::Object for Function {
         self.index
     }
 
-    fn get_value(&self) -> Value {
-        Value::Chunk(self.chunk.clone())
+    fn get_values(&self) -> Vec<Value> {
+        vec![Value::Chunk(self.chunk.clone())]
     }
 
     fn get_arg_count(&self) -> usize {
@@ -121,8 +121,8 @@ impl rc::Object for NativeFn {
         self.index
     }
 
-    fn get_value(&self) -> Value {
-        Value::Fn(self.function)
+    fn get_values(&self) -> Vec<Value> {
+        vec![Value::Fn(self.function)]
     }
 
     fn get_arg_count(&self) -> usize {

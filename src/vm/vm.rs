@@ -55,11 +55,14 @@ impl VM {
                     }
                     self.rc.push(Box::new(function));
                 },
+                OpCode::STRUCT_DEC(struct_) => {
+                    self.rc.push(Box::new(struct_));
+                },
                 _ => errors::error_message("RUNTIME ERROR", format!("Declare all - this error should never prints out")),
             }
         }
 
-        Frame{chunk: self.rc.get_object(main_function_index).get_value().get_chunk(), stack: vec![], ip: 0}
+        Frame{chunk: self.rc.get_object(main_function_index).get_values()[0].get_chunk(), stack: vec![], ip: 0}
     }
 
     pub fn run(&mut self) {
@@ -92,9 +95,26 @@ impl VM {
                 frame.stack.push(frame.chunk.get_value(index));
     
             },
-    
+
+            OpCode::INSTANCE_DEC(mut instance) => {
+                let field_count = self.rc.get_object(instance.root_struct_pos).get_arg_count();
+
+                for _ in 0..field_count {
+                    instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap())
+                }
+                instance.fields_values.reverse();
+
+                self.rc.push(Box::new(instance));
+            }
+
+            OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
+                let instance_fields = self.rc.get_object(pos).get_values();
+
+                self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
+            }
+
             OpCode::FUNCTION_CALL(index) => {
-                let chunk = self.rc.get_object(index).get_value();
+                let chunk = self.rc.get_object(index).get_values()[0].clone();
                 
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
@@ -108,7 +128,7 @@ impl VM {
             },
     
             OpCode::NATIVE_FN_CALL(index) => {
-                let native_fn = self.rc.get_object(index).get_value().get_fn();
+                let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
                 
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
@@ -123,7 +143,7 @@ impl VM {
             },
 
             OpCode::PRINT_FN_CALL(index, arg_count) => {
-                let native_fn = self.rc.get_object(index).get_value().get_fn();
+                let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
 
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..arg_count {
