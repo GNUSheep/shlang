@@ -633,28 +633,63 @@ impl Compiler {
 
         self.parser.consume(TokenType::DOT);
 
-        let pos = self.get_instance_symbol_pos(name.clone());
+        let instance_pos = self.get_instance_symbol_pos(name.clone());
 
         self.parser.consume(TokenType::IDENTIFIER);
         let field_name = self.parser.prev.value.iter().collect::<String>();
 
-        let struct_name = match self.parser.symbols[pos].output_type {
+        let root_struct_name = match self.parser.symbols[instance_pos].output_type {
             TokenType::STRUCT(pos) => {
                 self.parser.symbols[pos].name.clone()
             },
-            _ => panic!(),
+            _ => {
+                errors::error_message("COMPILING ERROR", format!("Cannot find root struct for instance \"{}\" {}:",
+                    name,
+                    self.line,
+                ));
+                std::process::exit(1);
+            },
         };
 
-        let value_index = self.structs.get(&struct_name).unwrap().locals
+        let field_index = self.structs.get(&root_struct_name).unwrap().locals
             .iter()
             .enumerate()
             .find(|(_, name)| *name.name == field_name)
             .map(|(index, _)| index as i32)
             .unwrap_or(-1);
 
-        // error
+        if field_index == -1 {
+            errors::error_message("COMPILING ERROR", format!("Field: \"{}\" is not declared in struct \"{}\" {}:",
+                field_name,
+                root_struct_name,
+                self.line,
+            ));
+            std::process::exit(1);
+        }
 
-        self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, value_index as usize), self.line)
+        if self.parser.cur.token_type == TokenType::EQ {
+            self.parser.consume(TokenType::EQ);
+
+            self.expression();
+
+            if self.get_cur_chunk().get_last_value().convert() != self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type {
+                let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                errors::error_message("COMPILER ERROR",
+                format!("Expected to find {:?} but found: {:?} {}:", 
+                    self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type, 
+                    value_type,
+                    self.line
+                ));
+                std::process::exit(1);
+            }
+
+            self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos, field_index as usize), self.line);
+        }else{
+            self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos, field_index as usize), self.line);
+        }
+
+
     }
 
     pub fn instance_declare(&mut self, pos: usize, name: String) {
@@ -669,9 +704,27 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
         
         let mut field_counts = 0;
+
+        let root_struct_name = self.parser.symbols[pos].name.clone();
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
-            field_counts += 1;
             self.expression();
+
+            if self.get_cur_chunk().get_last_value().convert() != self.structs.get(&root_struct_name).unwrap().locals[field_counts].local_type {
+                let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                errors::error_message("COMPILER ERROR",
+                format!("Expected to find {:?} but found: {:?} {}:", 
+                    self.structs.get(&root_struct_name).unwrap().locals[field_counts].local_type, 
+                    value_type,
+                    self.line
+                ));
+                std::process::exit(1);
+            }
+            
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
+            field_counts += 1;
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
 
@@ -679,7 +732,7 @@ impl Compiler {
 
         if field_counts != self.parser.symbols[pos].arg_count {
             errors::error_message("COMPILER ERROR",
-            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.line));
+            format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.line));
             std::process::exit(1);
         }
 
@@ -723,11 +776,11 @@ impl Compiler {
             struct_obj.locals.push(Local { name: field_name, local_type: field_type });
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
-
+        
         struct_obj.field_count = struct_obj.locals.len();
 
         let pos = self.get_struct_symbol_pos(name.clone());
-        self.parser.symbols[pos].arg_count = struct_obj.field_count;
+        self.parser.symbols[pos].arg_count = struct_obj.locals.len();
 
         self.structs.insert(name, struct_obj.clone());
 
@@ -1296,6 +1349,9 @@ impl Compiler {
             self.compile_line();
             self.loop_info = LoopInfo::new();
         }
+        // Dunno if that help with memory
+        self.structs = HashMap::new();
+
         self.get_cur_chunk().clone()
     }
 

@@ -113,6 +113,12 @@ impl VM {
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             }
 
+            OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
+                let value = self.frames[self.ip].stack.pop().unwrap();
+
+                self.rc.get_object(pos).set_value(field_pos, value);
+            }
+
             OpCode::FUNCTION_CALL(index) => {
                 let chunk = self.rc.get_object(index).get_values()[0].clone();
                 

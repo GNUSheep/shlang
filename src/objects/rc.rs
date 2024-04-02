@@ -9,6 +9,7 @@ pub trait Object {
     fn get_index(&self) -> usize;
 
     fn get_values(&self) -> Vec<value::Value>;
+    fn set_value(&mut self, pos: usize, value: value::Value); 
     fn get_arg_count(&self) -> usize;
 }
 
