@@ -1054,10 +1054,7 @@ impl Compiler {
 
     pub fn else_stmt(&mut self) {
         self.parser.consume(TokenType::LEFT_BRACE);
-        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
-            self.compile_line();
-        };
-        self.parser.consume(TokenType::RIGHT_BRACE);
+        self.block();
     }
 
     pub fn while_stmt(&mut self) {
@@ -1335,7 +1332,10 @@ impl Compiler {
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
                 self.emit_byte(OpCode::LOOP(offset), self.line);
             },
-            _ => self.expression(),
+            _ => {
+                self.expression();
+                self.emit_byte(OpCode::POP, self.line);
+            },
         }
     }
 
