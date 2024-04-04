@@ -9,6 +9,7 @@ use crate::{
 pub struct Local {
     pub name: String,
     pub local_type: TokenType,
+    pub symbol_pos: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]

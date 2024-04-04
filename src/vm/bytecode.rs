@@ -25,6 +25,7 @@ pub enum OpCode {
     VAR_SET(usize),
 
     POP,
+    DEC_RC(usize),
 
     CONSTANT_BOOL(usize),
     EQ_BOOL,

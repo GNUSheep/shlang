@@ -107,7 +107,7 @@ impl StructInstance {
         Self {
             root_struct_pos: pos,
             fields_values: vec![],
-            rc_counter: 0,
+            rc_counter: 1,
             index: 0,
         }
     }

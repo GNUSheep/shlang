@@ -17,6 +17,7 @@ pub struct VM {
     pub ip: usize,
     pub rc: rc::ReferenceCounter,
     break_loop: bool,
+    rc_offset: usize,
 }
 
 impl VM {
@@ -26,6 +27,7 @@ impl VM {
             ip: 0,
             rc: rc::ReferenceCounter::init(),
             break_loop: false,
+            rc_offset: 0,
         }
     }
 
@@ -66,12 +68,17 @@ impl VM {
     }
 
     pub fn run(&mut self) {
+        println!("START LEN: {}", self.rc.heap.len());
+        self.rc_offset = self.rc.heap.len();
         loop {
             let instruction = self.get_instruction().clone();
 
             match instruction.op {
                 OpCode::RETURN => {
+                    self.rc_offset = self.rc.heap.len();
+
                     if self.ip == 0 {
+                        println!("RETURN LEN: {}", self.rc.heap.len());
                         println!("Stack: {:?}", self.frames[self.ip].stack);
                         break
                     }
@@ -80,6 +87,8 @@ impl VM {
                     
                     self.ip -= 1;
         
+                    println!("LEN: {}", self.rc.heap.len());
+
                     self.frames[self.ip].stack.push(return_val);
                 },
                 _ => self.run_instruction(instruction),
@@ -98,7 +107,6 @@ impl VM {
 
             OpCode::INSTANCE_DEC(mut instance) => {
                 let field_count = self.rc.get_object(instance.root_struct_pos).get_arg_count();
-
                 for _ in 0..field_count {
                     instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap())
                 }
@@ -108,7 +116,7 @@ impl VM {
             }
 
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
-                let instance_fields = self.rc.get_object(pos).get_values();
+                let instance_fields = self.rc.get_object(pos+self.rc_offset).get_values();
 
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             }
@@ -130,6 +138,8 @@ impl VM {
                 
                 self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0 });
 
+                self.rc_offset = self.rc.heap.len();
+                
                 self.ip += 1;
             },
     
@@ -186,6 +196,10 @@ impl VM {
             OpCode::POP => {
                 self.frames[self.ip].stack.pop();
             },
+
+            OpCode::DEC_RC(pos) => {
+                self.rc.dec_counter(self.rc_offset+pos);
+            }
 
             OpCode::VAR_CALL(index) => {
                 let value = self.frames[self.ip].stack[index].clone();

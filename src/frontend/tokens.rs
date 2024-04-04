@@ -67,7 +67,7 @@ pub enum Keywords {
     IN,
     FN,
     STRUCT,
-    INSTANCE,
+    INSTANCE(usize),
     RETURN,
 }
 
@@ -95,7 +95,7 @@ impl std::str::FromStr for Keywords {
             "in" => Ok(Keywords::IN),
             "fn" => Ok(Keywords::FN),
             "struct" => Ok(Keywords::STRUCT),
-            "instance" => Ok(Keywords::INSTANCE),
+            "instance" => Ok(Keywords::INSTANCE(0)),
             "return" => Ok(Keywords::RETURN),
             _ => Err(()),
         }
