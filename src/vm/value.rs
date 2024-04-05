@@ -105,6 +105,7 @@ impl Convert for Value {
             Value::Float(_) => TokenType::FLOAT,
             Value::Int(_) => TokenType::INT,
             Value::Bool(_) => TokenType::BOOL,
+            Value::Null => TokenType::NULL,
             _ => {
                 errors::conversion_error("Enum Value<_>", "TokenType");
                 std::process::exit(1);

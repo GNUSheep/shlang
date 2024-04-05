@@ -39,17 +39,13 @@ impl ReferenceCounter {
     pub fn dec_counter(&mut self, index: usize) {
         let obj = self.get_object(index);
         obj.dec_counter();
-        
-        if obj.get_rc_counter() == 0 {
-            self.remove(index);
-        }
     }
 
-    pub fn remove(&mut self, index: usize) {
-        self.heap.remove(index);
-
-        for (i, obj) in self.heap.iter_mut().enumerate() {
-            obj.set_index(i);
+    pub fn remove(&mut self) {
+        for i in 0..self.heap.len() {
+            if self.get_object(i).get_rc_counter() == 0 {
+                self.heap.remove(i);
+            }
         }
     }
 

@@ -62,6 +62,7 @@ pub enum OpCode {
     NEGATE,
 
     RETURN,
+    END_OF_FN,
 }
 
 #[derive(Debug, Clone, PartialEq)]

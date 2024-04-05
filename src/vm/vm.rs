@@ -10,6 +10,7 @@ pub struct Frame {
     pub chunk: Chunk,
     pub stack: Vec<Value>,
     pub ip: usize,
+    pub offset: usize,
 }
 
 pub struct VM {
@@ -64,30 +65,36 @@ impl VM {
             }
         }
 
-        Frame{chunk: self.rc.get_object(main_function_index).get_values()[0].get_chunk(), stack: vec![], ip: 0}
+        Frame{chunk: self.rc.get_object(main_function_index).get_values()[0].get_chunk(), stack: vec![], ip: 0, offset: 0 }
     }
 
     pub fn run(&mut self) {
-        println!("START LEN: {}", self.rc.heap.len());
-        self.rc_offset = self.rc.heap.len();
+        self.frames[self.ip].offset = self.rc.heap.len();
         loop {
             let instruction = self.get_instruction().clone();
 
             match instruction.op {
                 OpCode::RETURN => {
-                    self.rc_offset = self.rc.heap.len();
-
                     if self.ip == 0 {
-                        println!("RETURN LEN: {}", self.rc.heap.len());
                         println!("Stack: {:?}", self.frames[self.ip].stack);
                         break
                     }
+
                     let return_val = self.frames[self.ip].stack.pop().unwrap();
-                    self.frames.pop();
                     
+                    let mut instr = self.get_instruction().clone();
+
+                    while instr.op != OpCode::END_OF_FN {
+                        self.run_instruction(instr);
+
+                        instr = self.get_instruction().clone();
+                    }
+                    
+                    self.frames.pop();
+
+                    self.rc.remove();
+
                     self.ip -= 1;
-        
-                    println!("LEN: {}", self.rc.heap.len());
 
                     self.frames[self.ip].stack.push(return_val);
                 },
@@ -116,7 +123,7 @@ impl VM {
             }
 
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
-                let instance_fields = self.rc.get_object(pos+self.rc_offset).get_values();
+                let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
 
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             }
@@ -136,9 +143,7 @@ impl VM {
                 }
                 stack.reverse();
                 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0 });
-
-                self.rc_offset = self.rc.heap.len();
+                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() });
                 
                 self.ip += 1;
             },
@@ -198,7 +203,7 @@ impl VM {
             },
 
             OpCode::DEC_RC(pos) => {
-                self.rc.dec_counter(self.rc_offset+pos);
+                self.rc.dec_counter(self.frames[self.ip].offset+pos);
             }
 
             OpCode::VAR_CALL(index) => {

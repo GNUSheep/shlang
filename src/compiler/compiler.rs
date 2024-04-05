@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn}, structs::{Struct, StructInstance}},
-    vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    objects::{functions::{Function, Local, NativeFn}, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -178,7 +177,7 @@ impl Parser {
                     is_main_fn_found = true;
                 }
 
-                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::NULL, arg_count: 0 });
             }
 
             if token_pair[0].token_type == TokenType::KEYWORD(Keywords::STRUCT) {
@@ -889,6 +888,9 @@ impl Compiler {
                 TokenType::BOOL => {
                     self.get_cur_chunk().push_value(Value::Bool(true));
                 },
+                TokenType::NULL => {
+                    self.get_cur_chunk().push_value(Value::Null);
+                },
                 output_type => {
                     errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
                     std::process::exit(1);
@@ -943,7 +945,9 @@ impl Compiler {
                 function.output_type = keyword.convert();
                 self.parser.consume(TokenType::KEYWORD(keyword))
             },
-            _ => {},
+            _ => {
+                function.output_type = TokenType::NULL;
+            }
         };
 
         self.parser.consume(TokenType::LEFT_BRACE);
@@ -955,6 +959,11 @@ impl Compiler {
 
         self.block();
 
+        let pos = self.get_cur_chunk().push_value(Value::Null);
+        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+
+        self.emit_byte(OpCode::RETURN, self.line);
+
         for index in 0..self.get_cur_locals().len() {
             match self.get_cur_locals()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
@@ -964,10 +973,8 @@ impl Compiler {
             }
         }
 
-        let pos = self.get_cur_chunk().push_value(Value::Null);
-        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+        self.emit_byte(OpCode::END_OF_FN, self.line);
 
-        self.emit_byte(OpCode::RETURN, self.line);
         let op_code = OpCode::FUNCTION_DEC(self.cur_function.clone());
 
         self.cur_function = enclosing;
