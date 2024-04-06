@@ -18,7 +18,6 @@ pub struct VM {
     pub ip: usize,
     pub rc: rc::ReferenceCounter,
     break_loop: bool,
-    rc_offset: usize,
 }
 
 impl VM {
@@ -28,7 +27,6 @@ impl VM {
             ip: 0,
             rc: rc::ReferenceCounter::init(),
             break_loop: false,
-            rc_offset: 0,
         }
     }
 
