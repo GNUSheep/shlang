@@ -82,7 +82,7 @@ impl VM {
                     
                     let mut instr = self.get_instruction().clone();
 
-                    while instr.op != OpCode::END_OF_FN {
+                    while matches!(instr.op, OpCode::DEC_RC(_)) && instr.op != OpCode::END_OF_FN {
                         self.run_instruction(instr);
 
                         instr = self.get_instruction().clone();
@@ -118,34 +118,43 @@ impl VM {
                 instance.fields_values.reverse();
 
                 self.rc.push(Box::new(instance));
-            }
-
+            },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
 
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
-            }
-
+            },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
                 let value = self.frames[self.ip].stack.pop().unwrap();
 
-                self.rc.get_object(pos).set_value(field_pos, value);
-            }
+                self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
+            },
+            OpCode::GET_INSTANCE_RF(pos) => {
+                // need to find if other method with using it, would be better
+                self.frames[self.ip].stack.push(Value::InstanceRef);
+                self.rc.inc_counter(pos);
+            },
 
             OpCode::FUNCTION_CALL(index) => {
                 let chunk = self.rc.get_object(index).get_values()[0].clone();
-                
+
                 let mut stack: Vec<Value> = vec![];
+                let mut instance_rf_count = 0;
+
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
-                    stack.push(self.frames[self.ip].stack.pop().unwrap());
+                    let value = self.frames[self.ip].stack.pop().unwrap();
+                    if value == Value::InstanceRef {
+                        instance_rf_count += 1;
+                    }
+
+                    stack.push(value);
                 }
                 stack.reverse();
                 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() });
+                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
                 
                 self.ip += 1;
             },
-    
             OpCode::NATIVE_FN_CALL(index) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
                 
@@ -160,7 +169,6 @@ impl VM {
                     self.frames[self.ip].stack.push(output);
                 }
             },
-
             OpCode::PRINT_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
 
@@ -202,6 +210,9 @@ impl VM {
 
             OpCode::DEC_RC(pos) => {
                 self.rc.dec_counter(self.frames[self.ip].offset+pos);
+            },
+            OpCode::INC_RC(pos) => {
+                self.rc.inc_counter(pos);
             }
 
             OpCode::VAR_CALL(index) => {
@@ -355,7 +366,7 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
             },
     
-            _ => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out")),
+            opcode => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: {:?}", opcode)),
         }
     }
 }

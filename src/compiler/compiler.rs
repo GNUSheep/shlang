@@ -556,6 +556,13 @@ impl Compiler {
             TokenType::BOOL => {
                 self.get_cur_chunk().push_value(Value::Bool(true));
             },
+            TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
+                self.emit_byte(OpCode::GET_INSTANCE_RF(root_struct_pos), self.line);
+                
+                let instance_pos = self.get_cur_locals()[pos as usize].symbol_pos;
+                self.emit_byte(OpCode::INC_RC(instance_pos), self.line);
+                return
+            },
             local_type => {
                 errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.line));
                 std::process::exit(1);
@@ -856,6 +863,7 @@ impl Compiler {
             arg_count += 1;
 
             self.expression();
+
             if self.parser.cur.token_type == TokenType::COMMA {
                 self.parser.consume(TokenType::COMMA);
             }
@@ -922,6 +930,12 @@ impl Compiler {
             self.parser.consume(TokenType::COLON);
             let arg_type = match self.parser.cur.token_type {
                 TokenType::KEYWORD(keyword) => keyword.convert(),
+                TokenType::IDENTIFIER => {
+                    let value = self.parser.cur.value.iter().collect::<String>();
+                    let pos = self.get_struct_symbol_pos(value);
+
+                    TokenType::KEYWORD(Keywords::INSTANCE(pos))
+                }
                 _ => {
                     errors::error_message("COMPILER ERROR", format!("Expected arg type after \":\" {}:", self.line));
                     std::process::exit(1);

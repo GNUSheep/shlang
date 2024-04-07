@@ -15,6 +15,7 @@ pub enum Value {
     Null,
     String(String),
     Chunk(Chunk),
+    InstanceRef,
     Fn(fn(Vec<Value>) -> Value),
 }
 
