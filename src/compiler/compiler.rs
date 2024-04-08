@@ -558,9 +558,11 @@ impl Compiler {
             },
             TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
                 self.emit_byte(OpCode::GET_INSTANCE_RF(root_struct_pos), self.line);
-                
-                let instance_pos = self.get_cur_locals()[pos as usize].symbol_pos;
-                self.emit_byte(OpCode::INC_RC(instance_pos), self.line);
+
+                let offset = self.get_locals_offset(var_name);
+
+                self.emit_byte(OpCode::INC_RC(pos as usize - offset), self.line);
+
                 return
             },
             local_type => {
@@ -568,8 +570,10 @@ impl Compiler {
                 std::process::exit(1);
             }
         };
-        
-        self.emit_byte(OpCode::VAR_CALL(pos as usize), self.line);
+
+        let offset = self.get_instance_offset(var_name);
+
+        self.emit_byte(OpCode::VAR_CALL(pos as usize - offset), self.line);
     }
 
     pub fn var_declare(&mut self) {
@@ -610,6 +614,7 @@ impl Compiler {
         match var_type {
             TokenType::STRUCT(pos) => {
                 self.instance_declare(pos, var_name);
+
                 return
             }
             _ => {},
@@ -675,6 +680,8 @@ impl Compiler {
             std::process::exit(1);
         }
 
+        let offset = self.get_locals_offset(name);
+
         if self.parser.cur.token_type == TokenType::EQ {
             self.parser.consume(TokenType::EQ);
 
@@ -692,9 +699,9 @@ impl Compiler {
                 std::process::exit(1);
             }
 
-            self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos, field_index as usize), self.line);
+            self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos - offset, field_index as usize), self.line);
         }else{
-            self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos, field_index as usize), self.line);
+            self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos - offset, field_index as usize), self.line);
         }
 
 
@@ -853,6 +860,36 @@ impl Compiler {
         }
 
         pos as usize
+    }
+
+    pub fn get_locals_offset(&mut self, instance_name: String) -> usize {
+        let mut offset = 0;
+        for i in self.get_cur_locals() {
+            if i.name == instance_name {
+                break
+            }
+
+            if !matches!(i.local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
+                offset += 1;
+            }
+        }
+
+        offset
+    }
+
+    pub fn get_instance_offset(&mut self, local_name: String) -> usize {
+        let mut offset = 0;
+        for i in self.get_cur_locals() {
+            if i.name == local_name {
+                break
+            }
+
+            if matches!(i.local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
+                offset += 1;
+            }
+        }
+
+        offset
     }
 
     pub fn fn_call(&mut self) {

@@ -145,9 +145,9 @@ impl VM {
                     let value = self.frames[self.ip].stack.pop().unwrap();
                     if value == Value::InstanceRef {
                         instance_rf_count += 1;
+                    }else {
+                        stack.push(value);
                     }
-
-                    stack.push(value);
                 }
                 stack.reverse();
                 
@@ -157,7 +157,7 @@ impl VM {
             },
             OpCode::NATIVE_FN_CALL(index) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
-                
+
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
                     stack.push(self.frames[self.ip].stack.pop().unwrap());
@@ -171,6 +171,8 @@ impl VM {
             },
             OpCode::PRINT_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
+
+                println!("{:?}", self.frames[self.ip].stack);
 
                 let mut stack: Vec<Value> = vec![];
                 for _ in 0..arg_count {
@@ -212,7 +214,7 @@ impl VM {
                 self.rc.dec_counter(self.frames[self.ip].offset+pos);
             },
             OpCode::INC_RC(pos) => {
-                self.rc.inc_counter(pos);
+                self.rc.inc_counter(self.frames[self.ip].offset+pos);
             }
 
             OpCode::VAR_CALL(index) => {

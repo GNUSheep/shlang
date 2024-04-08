@@ -17,6 +17,7 @@ pub struct Function {
     pub name: String,
     pub chunk: bytecode::Chunk,
     pub locals: Vec<Local>,
+    pub instances: Vec<Local>,
     pub output_type: TokenType,
     pub arg_count: usize,
     rc_counter: usize,
@@ -62,6 +63,7 @@ impl Function {
             name: name,
             chunk: bytecode::Chunk::new(),
             locals: vec![],
+            instances: vec![],
             output_type: TokenType::KEYWORD(Keywords::NULL),
             arg_count: 0,
             rc_counter: 1,
@@ -75,6 +77,10 @@ impl Function {
 
     pub fn get_locals(&mut self) -> &mut Vec<Local> {
         &mut self.locals
+    }
+
+    pub fn get_instances(&mut self) -> &mut Vec<Local> {
+        &mut self.instances
     }
 }
 

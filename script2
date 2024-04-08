@@ -1,0 +1,25 @@
+struct Name {
+    x: int,
+}
+
+fn beep(x: Name) {
+    var one: int = 50
+    
+    println(one)
+
+    var two: Name = {15010}
+
+    println(two)
+
+    var three: int = 100
+
+    println(three)
+
+    println(x.x * one * two.x * three)
+}
+
+fn main() {
+    var one: Name = {1}
+
+    beep(one)
+}
