@@ -251,6 +251,10 @@ impl Compiler {
         self.cur_function.get_locals()
     }
 
+    pub fn get_cur_instances(&mut self) -> &mut Vec<Local> {
+        self.cur_function.get_instances()
+    }
+
     pub fn negation(&mut self) {
         let negation_token = self.parser.prev.clone();
 
@@ -533,6 +537,34 @@ impl Compiler {
     pub fn var_call(&mut self) {
         let var_name = self.parser.prev.value.iter().collect::<String>();
 
+        let pos = self.get_cur_instances()
+            .iter()
+            .enumerate()
+            .find(|(_, local)| local.name == var_name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos != -1 {
+            match self.get_cur_instances()[pos as usize].local_type {
+                TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
+                    self.emit_byte(OpCode::GET_INSTANCE_RF(root_struct_pos), self.line);
+    
+                    let pos = self.get_cur_instances()
+                        .iter()
+                        .enumerate()
+                        .find(|(_, local)| local.name == var_name)
+                        .map(|(index, _)| index as i32)
+                        .unwrap_or(-1);
+    
+                    self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
+    
+                    return
+                },
+                _ => {},
+            }
+            
+        }
+
         let pos = self.get_cur_locals()
             .iter()
             .enumerate()
@@ -540,7 +572,7 @@ impl Compiler {
             .map(|(index, _)| index as i32)
             .unwrap_or(-1);
 
-        if pos == -1 {
+        if pos == -1 {         
             errors::error_message("COMPILER ERROR",
             format!("Symbol: \"{}\" is not defined as var in this scope {}:", var_name, self.line));
             std::process::exit(1);
@@ -556,24 +588,13 @@ impl Compiler {
             TokenType::BOOL => {
                 self.get_cur_chunk().push_value(Value::Bool(true));
             },
-            TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
-                self.emit_byte(OpCode::GET_INSTANCE_RF(root_struct_pos), self.line);
-
-                let offset = self.get_locals_offset(var_name);
-
-                self.emit_byte(OpCode::INC_RC(pos as usize - offset), self.line);
-
-                return
-            },
             local_type => {
                 errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.line));
                 std::process::exit(1);
             }
         };
 
-        let offset = self.get_instance_offset(var_name);
-
-        self.emit_byte(OpCode::VAR_CALL(pos as usize - offset), self.line);
+        self.emit_byte(OpCode::VAR_CALL(pos as usize), self.line);
     }
 
     pub fn var_declare(&mut self) {
@@ -651,7 +672,7 @@ impl Compiler {
         self.parser.consume(TokenType::IDENTIFIER);
         let field_name = self.parser.prev.value.iter().collect::<String>();
 
-        let root_struct_name = match self.get_cur_locals()[instance_pos].local_type {
+        let root_struct_name = match self.get_cur_instances()[instance_pos].local_type {
             TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
                 self.parser.symbols[root_struct_pos].name.clone()
             },
@@ -680,7 +701,12 @@ impl Compiler {
             std::process::exit(1);
         }
 
-        let offset = self.get_locals_offset(name);
+        let pos = self.get_cur_instances()
+            .iter()
+            .enumerate()
+            .find(|(_, local)| local.name == name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
 
         if self.parser.cur.token_type == TokenType::EQ {
             self.parser.consume(TokenType::EQ);
@@ -699,9 +725,9 @@ impl Compiler {
                 std::process::exit(1);
             }
 
-            self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos - offset, field_index as usize), self.line);
+            self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
         }else{
-            self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos - offset, field_index as usize), self.line);
+            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
         }
 
 
@@ -754,7 +780,7 @@ impl Compiler {
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.line);
 
         let symbol_len = self.parser.symbols.len();
-        self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), symbol_pos: symbol_len });
+        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), symbol_pos: symbol_len });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(0)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
     }
@@ -843,7 +869,7 @@ impl Compiler {
     }
 
     pub fn get_instance_local_pos(&mut self, instance_name: String) -> usize {
-        let pos = self.get_cur_locals()
+        let pos = self.get_cur_instances()
             .iter()
             .enumerate()
             .find(|(_, local)| {
@@ -860,36 +886,6 @@ impl Compiler {
         }
 
         pos as usize
-    }
-
-    pub fn get_locals_offset(&mut self, instance_name: String) -> usize {
-        let mut offset = 0;
-        for i in self.get_cur_locals() {
-            if i.name == instance_name {
-                break
-            }
-
-            if !matches!(i.local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
-                offset += 1;
-            }
-        }
-
-        offset
-    }
-
-    pub fn get_instance_offset(&mut self, local_name: String) -> usize {
-        let mut offset = 0;
-        for i in self.get_cur_locals() {
-            if i.name == local_name {
-                break
-            }
-
-            if matches!(i.local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
-                offset += 1;
-            }
-        }
-
-        offset
     }
 
     pub fn fn_call(&mut self) {
@@ -984,7 +980,12 @@ impl Compiler {
                 self.parser.consume(TokenType::COMMA);
             }
 
-            function.locals.push(Local { name: arg_name, local_type: arg_type , symbol_pos: 0 });
+            if matches!(arg_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
+                function.instances.push(Local { name: arg_name, local_type: arg_type , symbol_pos: 0 });
+            }else {
+                function.locals.push(Local { name: arg_name, local_type: arg_type , symbol_pos: 0 });
+            }
+
         }
         self.parser.consume(TokenType::RIGHT_PAREN);
 
@@ -1410,7 +1411,7 @@ impl Compiler {
             },
             _ => {
                 self.expression();
-                self.emit_byte(OpCode::POP, self.line);
+                //self.emit_byte(OpCode::POP, self.line);
             },
         }
     }

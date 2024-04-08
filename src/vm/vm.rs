@@ -218,6 +218,7 @@ impl VM {
             }
 
             OpCode::VAR_CALL(index) => {
+                println!("{:?}", self.frames[self.ip].stack);
                 let value = self.frames[self.ip].stack[index].clone();
                 self.frames[self.ip].stack.push(value);
             },
