@@ -535,8 +535,8 @@ impl Compiler {
 
         if pos != -1 {
             match self.get_cur_instances()[pos as usize].local_type {
-                TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
-                    self.emit_byte(OpCode::GET_INSTANCE_RF(root_struct_pos), self.line);
+                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                    self.emit_byte(OpCode::GET_INSTANCE_RF, self.line);
     
                     let pos = self.get_instance_local_pos(var_name);
     
@@ -574,7 +574,12 @@ impl Compiler {
 
         let var_name = self.parser.prev.value.iter().collect::<String>();
         if self.get_cur_locals().iter().any(| local | local.name == var_name ) {
-            errors::error_message("COMPILER ERROR", format!("Symnbol: \"{}\" is already defined {}:", var_name, self.line));
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.line));
+            std::process::exit(1);
+        }
+
+        if self.get_cur_instances().iter().any(| local | local.name == var_name ) {
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.line));
             std::process::exit(1);
         }
 
@@ -631,7 +636,7 @@ impl Compiler {
             self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
         }
 
-        self.get_cur_locals().push(Local { name: var_name, local_type: var_type, symbol_pos: 0});
+        self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0 });
     }
 
     pub fn instance_call(&mut self) {
@@ -709,6 +714,16 @@ impl Compiler {
         }
         self.parser.consume(TokenType::EQ);
 
+        if self.parser.cur.token_type != TokenType::LEFT_BRACE {
+            let value = self.parser.cur.value.iter().collect::<String>();
+
+            let pos = self.get_instance_local_pos(value);
+            let local_type = self.get_cur_instances()[pos].local_type;
+            
+            self.get_cur_instances().push(Local{ name: name, local_type: local_type, is_redirected: true, redirect_pos: pos  });
+
+            return
+        }
         self.parser.consume(TokenType::LEFT_BRACE);
         
         let mut field_counts = 0;
@@ -746,8 +761,7 @@ impl Compiler {
 
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.line);
 
-        let symbol_len = self.parser.symbols.len();
-        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), symbol_pos: symbol_len });
+        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0  });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(0)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
     }
@@ -785,7 +799,7 @@ impl Compiler {
 
             self.parser.consume(TokenType::COMMA);
 
-            struct_obj.locals.push(Local { name: field_name, local_type: field_type, symbol_pos: 0});
+            struct_obj.locals.push(Local { name: field_name, local_type: field_type, is_redirected: false, redirect_pos: 0 });
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
         
@@ -867,6 +881,10 @@ impl Compiler {
             errors::error_message("COMPILER ERROR",
             format!("Local: \"{}\" is not defined as instance in this scope {}:", instance_name, self.line));
             std::process::exit(1);
+        }
+
+        if self.get_cur_instances()[pos as usize].is_redirected {
+            return self.get_cur_instances()[pos as usize].redirect_pos
         }
 
         pos as usize
@@ -965,9 +983,9 @@ impl Compiler {
             }
 
             if matches!(arg_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
-                function.instances.push(Local { name: arg_name, local_type: arg_type , symbol_pos: 0 });
+                function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0  });
             }else {
-                function.locals.push(Local { name: arg_name, local_type: arg_type , symbol_pos: 0 });
+                function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0  });
             }
 
         }
@@ -1175,7 +1193,7 @@ impl Compiler {
         self.parser.consume(TokenType::IDENTIFIER);
 
         let identifier = self.parser.prev.value.iter().collect::<String>();
-        self.get_cur_locals().push(Local { name: identifier, local_type: TokenType::INT, symbol_pos: 0 });
+        self.get_cur_locals().push(Local { name: identifier, local_type: TokenType::INT, is_redirected: false, redirect_pos: 0  });
 
         self.parser.consume(TokenType::KEYWORD(Keywords::IN));
 
@@ -1188,7 +1206,7 @@ impl Compiler {
 
         self.expression();
 
-        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, symbol_pos: 0 });
+        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_redirected: false, redirect_pos: 0  });
 
         if self.parser.cur.token_type != TokenType::RIGHT_PAREN {
             self.parser.consume(TokenType::COMMA);
@@ -1209,7 +1227,7 @@ impl Compiler {
             self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
         }
 
-        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, symbol_pos: 0 });
+        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_redirected: false, redirect_pos: 0  });
 
         self.parser.consume(TokenType::RIGHT_PAREN);
 

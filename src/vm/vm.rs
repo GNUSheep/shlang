@@ -129,10 +129,9 @@ impl VM {
 
                 self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
             },
-            OpCode::GET_INSTANCE_RF(pos) => {
+            OpCode::GET_INSTANCE_RF => {
                 // need to find if other method with using it, would be better
                 self.frames[self.ip].stack.push(Value::InstanceRef);
-                self.rc.inc_counter(pos);
             },
 
             OpCode::FUNCTION_CALL(index) => {
