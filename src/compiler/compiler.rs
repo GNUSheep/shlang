@@ -507,18 +507,7 @@ impl Compiler {
 
         self.expression();
         
-        let pos = self.get_cur_locals()
-        .iter()
-        .enumerate()
-        .find(|(_, local)| local.name == var_name)
-        .map(|(index, _)| index as i32)
-        .unwrap_or(-1);
-
-        if pos == -1 {
-            errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined as var in this scope {}:", var_name, self.line));
-            std::process::exit(1);
-        }
+        let pos = self.get_local_pos(var_name);
 
         let value_type = self.get_cur_chunk().get_last_value().convert();
         let var_type = self.get_cur_locals()[pos as usize].local_type;
@@ -549,12 +538,7 @@ impl Compiler {
                 TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
                     self.emit_byte(OpCode::GET_INSTANCE_RF(root_struct_pos), self.line);
     
-                    let pos = self.get_cur_instances()
-                        .iter()
-                        .enumerate()
-                        .find(|(_, local)| local.name == var_name)
-                        .map(|(index, _)| index as i32)
-                        .unwrap_or(-1);
+                    let pos = self.get_instance_local_pos(var_name);
     
                     self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
     
@@ -565,19 +549,7 @@ impl Compiler {
             
         }
 
-        let pos = self.get_cur_locals()
-            .iter()
-            .enumerate()
-            .find(|(_, local)| local.name == var_name)
-            .map(|(index, _)| index as i32)
-            .unwrap_or(-1);
-
-        if pos == -1 {         
-            errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined as var in this scope {}:", var_name, self.line));
-            std::process::exit(1);
-        }
-
+        let pos = self.get_local_pos(var_name);
         match self.get_cur_locals()[pos as usize].local_type {
             TokenType::INT => {
                 self.get_cur_chunk().push_value(Value::Int(0));
@@ -701,12 +673,7 @@ impl Compiler {
             std::process::exit(1);
         }
 
-        let pos = self.get_cur_instances()
-            .iter()
-            .enumerate()
-            .find(|(_, local)| local.name == name)
-            .map(|(index, _)| index as i32)
-            .unwrap_or(-1);
+        let pos = self.get_instance_local_pos(name);
 
         if self.parser.cur.token_type == TokenType::EQ {
             self.parser.consume(TokenType::EQ);
@@ -868,6 +835,23 @@ impl Compiler {
         pos as usize
     }
 
+    pub fn get_local_pos(&mut self, name: String) -> usize {
+        let pos = self.get_cur_locals()
+            .iter()
+            .enumerate()
+            .find(|(_, local)| local.name == name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as var in this scope {}:", name, self.line));
+            std::process::exit(1);
+        }
+
+        pos as usize
+    }
+    
     pub fn get_instance_local_pos(&mut self, instance_name: String) -> usize {
         let pos = self.get_cur_instances()
             .iter()
@@ -1016,8 +1000,8 @@ impl Compiler {
 
         self.emit_byte(OpCode::RETURN, self.line);
 
-        for index in 0..self.get_cur_locals().len() {
-            match self.get_cur_locals()[index].local_type.clone() {
+        for index in 0..self.get_cur_instances().len() {
+            match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     self.emit_byte(OpCode::DEC_RC(index), self.line);
                 },
@@ -1411,7 +1395,7 @@ impl Compiler {
             },
             _ => {
                 self.expression();
-                //self.emit_byte(OpCode::POP, self.line);
+                self.emit_byte(OpCode::POP, self.line);
             },
         }
     }

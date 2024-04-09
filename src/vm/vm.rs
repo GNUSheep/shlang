@@ -141,10 +141,12 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;
 
-                for _ in 0..self.rc.get_object(index).get_arg_count() {
-                    let value = self.frames[self.ip].stack.pop().unwrap();
+                let len = self.frames[self.ip].stack.len() - 1;
+                for i in 0..self.rc.get_object(index).get_arg_count() {
+                    let value = self.frames[self.ip].stack[len - i].clone();
                     if value == Value::InstanceRef {
                         instance_rf_count += 1;
+                        self.frames[self.ip].stack.pop();
                     }else {
                         stack.push(value);
                     }
@@ -159,8 +161,9 @@ impl VM {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
 
                 let mut stack: Vec<Value> = vec![];
-                for _ in 0..self.rc.get_object(index).get_arg_count() {
-                    stack.push(self.frames[self.ip].stack.pop().unwrap());
+                let len = self.frames[self.ip].stack.len() - 1;
+                for i in 0..self.rc.get_object(index).get_arg_count() {
+                    stack.push(self.frames[self.ip].stack[len - i].clone());
                 }
                 stack.reverse();
 
@@ -172,11 +175,10 @@ impl VM {
             OpCode::PRINT_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
 
-                println!("{:?}", self.frames[self.ip].stack);
-
                 let mut stack: Vec<Value> = vec![];
-                for _ in 0..arg_count {
-                    stack.push(self.frames[self.ip].stack.pop().unwrap());
+                let len = self.frames[self.ip].stack.len() - 1;
+                for i in 0..arg_count {
+                    stack.push(self.frames[self.ip].stack[len - i].clone());
                 }
                 stack.reverse();
 
@@ -218,12 +220,12 @@ impl VM {
             }
 
             OpCode::VAR_CALL(index) => {
-                println!("{:?}", self.frames[self.ip].stack);
                 let value = self.frames[self.ip].stack[index].clone();
                 self.frames[self.ip].stack.push(value);
             },
             OpCode::VAR_SET(index) => {
-                let value = self.frames[self.ip].stack.pop().unwrap();
+                let len = self.frames[self.ip].stack.len();
+                let value = self.frames[self.ip].stack[len - 1].clone();
                 self.frames[self.ip].stack[index] = value;
             },
     
