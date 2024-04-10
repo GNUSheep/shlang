@@ -1,8 +1,12 @@
+use std::collections::HashMap;
+
 use crate::{
     frontend::tokens::{TokenType, Keywords},
     vm::value::Value,
     objects::{rc::Object, functions::Local},
 };
+
+use super::functions::Function;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Struct {
@@ -10,6 +14,7 @@ pub struct Struct {
     pub locals: Vec<Local>,
     pub output_type: TokenType,
     pub field_count: usize,
+    pub methods: HashMap<String, Function>,
     rc_counter: usize,
     index: usize,
 }
@@ -54,6 +59,7 @@ impl Struct {
             locals: vec![],
             output_type: TokenType::KEYWORD(Keywords::NULL),
             field_count: 0,
+            methods: HashMap::new(),
             rc_counter: 1,
             index: 0,
         }

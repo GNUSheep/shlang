@@ -133,6 +133,24 @@ impl VM {
                 // need to find if other method with using it, would be better
                 self.frames[self.ip].stack.push(Value::InstanceRef);
             },
+            OpCode::METHOD_CALL(mth) => {
+                let mut stack: Vec<Value> = vec![];
+                let mut instance_rf_count = 0;
+
+                for _ in 0..mth.arg_count {
+                    let value = self.frames[self.ip].stack.pop().unwrap();
+                    if value == Value::InstanceRef {
+                        instance_rf_count += 1;
+                    }else {
+                        stack.push(value);
+                    }
+                }
+                stack.reverse();
+
+                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
+
+                self.ip += 1;
+            }
 
             OpCode::FUNCTION_CALL(index) => {
                 let chunk = self.rc.get_object(index).get_values()[0].clone();
@@ -140,12 +158,10 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;
 
-                let len = self.frames[self.ip].stack.len() - 1;
-                for i in 0..self.rc.get_object(index).get_arg_count() {
-                    let value = self.frames[self.ip].stack[len - i].clone();
+                for _ in 0..self.rc.get_object(index).get_arg_count() {
+                    let value = self.frames[self.ip].stack.pop().unwrap();
                     if value == Value::InstanceRef {
                         instance_rf_count += 1;
-                        self.frames[self.ip].stack.pop();
                     }else {
                         stack.push(value);
                     }

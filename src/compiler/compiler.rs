@@ -662,6 +662,31 @@ impl Compiler {
             },
         };
 
+        if self.parser.cur.token_type == TokenType::LEFT_PAREN {
+            match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
+                Some(mth) => {
+                    self.mth_call(mth.output_type);
+                },
+                None => {
+                    errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
+                        field_name,
+                        root_struct_name,
+                        self.line,
+                    ));
+                    std::process::exit(1);
+                },
+            }
+            
+            match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
+                Some(mth) => {
+                    self.emit_byte(OpCode::METHOD_CALL(mth.clone()), self.line);
+                },
+                _ => {},
+            }
+
+            return
+        }
+
         let field_index = self.structs.get(&root_struct_name).unwrap().locals
             .iter()
             .enumerate()
@@ -781,7 +806,7 @@ impl Compiler {
         self.scope_depth += 1;
 
         self.parser.consume(TokenType::LEFT_BRACE);
-        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE && self.parser.cur.token_type != TokenType::KEYWORD(Keywords::METHODS) {
             self.parser.consume(TokenType::IDENTIFIER);
 
             let field_name = self.parser.prev.value.iter().collect::<String>();
@@ -801,6 +826,12 @@ impl Compiler {
 
             struct_obj.locals.push(Local { name: field_name, local_type: field_type, is_redirected: false, redirect_pos: 0 });
         }
+
+        if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::METHODS) {
+            self.parser.advance();
+            self.mth_stmt(&mut struct_obj);
+        }
+
         self.parser.consume(TokenType::RIGHT_BRACE);
         
         struct_obj.field_count = struct_obj.locals.len();
@@ -811,8 +842,52 @@ impl Compiler {
         self.structs.insert(name, struct_obj.clone());
 
         self.emit_byte(OpCode::STRUCT_DEC(struct_obj), self.line);
-
+        
         self.scope_depth -= 1;
+    }
+
+    pub fn mth_call(&mut self, output_type: TokenType) {
+        self.parser.consume(TokenType::LEFT_PAREN);
+
+        while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
+            self.expression();
+
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
+        }
+        self.parser.consume(TokenType::RIGHT_PAREN);
+
+        match output_type {
+            TokenType::INT => {
+                self.get_cur_chunk().push_value(Value::Int(0));
+            },
+            TokenType::FLOAT => {
+                self.get_cur_chunk().push_value(Value::Float(0.0));
+            },
+            TokenType::BOOL => {
+                self.get_cur_chunk().push_value(Value::Bool(true));
+            },
+            TokenType::NULL => {
+                self.get_cur_chunk().push_value(Value::Null);
+            },
+            output_type => {
+                errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
+                std::process::exit(1);
+            }
+        };
+    }
+
+    pub fn mth_stmt(&mut self, struct_obj: &mut Struct) {
+        self.parser.consume(TokenType::LEFT_BRACE);
+
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
+            let mth = self.fn_declare(true);
+
+            struct_obj.methods.insert(mth.name.clone(), mth);
+        }
+
+        self.parser.consume(TokenType::RIGHT_BRACE);
     }
 
     pub fn get_fn_symbol_pos(&mut self, fn_name: String) -> usize {
@@ -942,14 +1017,13 @@ impl Compiler {
         }
     }
 
-    pub fn fn_declare(&mut self) {
+    pub fn fn_declare(&mut self, is_mth: bool) -> Function {
         let name = self.parser.cur.value.iter().collect::<String>();
 
-        if self.scope_depth != 0 {
-            errors::error_message("COMPILE ERROR", format!("Function \"{}\" declaration inside bounds {}:", name, self.line));
+        if (self.scope_depth != 0 && !is_mth) || (self.scope_depth == 0 && is_mth) {
+            errors::error_message("COMPILE ERROR", format!("Function/Method \"{}\" declaration inside bounds {}:", name, self.line));
             std::process::exit(1)
         }
-
         let mut function = Function::new(name.clone());
 
         self.parser.advance();
@@ -991,8 +1065,10 @@ impl Compiler {
         }
         self.parser.consume(TokenType::RIGHT_PAREN);
 
-        let pos = self.get_fn_symbol_pos(name.clone());        
-        self.parser.symbols[pos].arg_count = function.arg_count;
+        if !is_mth {
+            let pos = self.get_fn_symbol_pos(name.clone());        
+            self.parser.symbols[pos].arg_count = function.arg_count;
+        }
 
         match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => {
@@ -1029,6 +1105,14 @@ impl Compiler {
 
         self.emit_byte(OpCode::END_OF_FN, self.line);
 
+        if is_mth {
+            let fun = self.cur_function.clone();
+            self.cur_function = enclosing;
+            self.scope_depth -= 1;
+
+            return fun
+        }
+
         let op_code = OpCode::FUNCTION_DEC(self.cur_function.clone());
 
         self.cur_function = enclosing;
@@ -1036,12 +1120,14 @@ impl Compiler {
         self.emit_byte(op_code, self.line);
 
         self.scope_depth -= 1;
+
+        Function::new(String::new())
     }
 
     pub fn declare(&mut self) {
         match self.parser.prev.token_type {
             TokenType::KEYWORD(Keywords::FN) => {
-                self.fn_declare();
+                let _ = self.fn_declare(false);
             },
             TokenType::KEYWORD(Keywords::VAR) => {
                 self.var_declare();
