@@ -122,10 +122,12 @@ impl VM {
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
 
+                println!("{:?}, {:?}", instance_fields, field_pos);
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
-                let value = self.frames[self.ip].stack.pop().unwrap();
+                let len = self.frames[self.ip].stack.len() - 1;
+                let value = self.frames[self.ip].stack[len].clone();
 
                 self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
             },
@@ -137,7 +139,8 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;
 
-                for _ in 0..mth.arg_count {
+                let adder: usize = if mth.is_self_arg { 1 }else { 0 };
+                for _ in 0..mth.arg_count + adder {
                     let value = self.frames[self.ip].stack.pop().unwrap();
                     if value == Value::InstanceRef {
                         instance_rf_count += 1;

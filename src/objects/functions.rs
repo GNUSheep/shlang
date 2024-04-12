@@ -21,6 +21,7 @@ pub struct Function {
     pub instances: Vec<Local>,
     pub output_type: TokenType,
     pub arg_count: usize,
+    pub is_self_arg: bool,
     rc_counter: usize,
     index: usize,
 }
@@ -67,6 +68,7 @@ impl Function {
             instances: vec![],
             output_type: TokenType::KEYWORD(Keywords::NULL),
             arg_count: 0,
+            is_self_arg: false,
             rc_counter: 1,
             index: 0,
         }

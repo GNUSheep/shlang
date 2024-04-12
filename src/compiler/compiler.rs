@@ -402,6 +402,7 @@ impl Compiler {
         let arithmetic_token = self.parser.prev.clone();
 
         let chunk = self.get_cur_chunk();
+
         let left_side = chunk.get_value(chunk.values.len() - 1).convert();
 
         let rule = self.parser.get_rule(&arithmetic_token.token_type);
@@ -665,7 +666,7 @@ impl Compiler {
         if self.parser.cur.token_type == TokenType::LEFT_PAREN {
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
-                    self.mth_call(mth.output_type);
+                    self.mth_call(mth.output_type, mth.arg_count, name, mth.is_self_arg);
                 },
                 None => {
                     errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
@@ -686,7 +687,7 @@ impl Compiler {
 
             return
         }
-
+        println!("{:?}, {:?}, {:?}", field_name, name, root_struct_name);
         let field_index = self.structs.get(&root_struct_name).unwrap().locals
             .iter()
             .enumerate()
@@ -724,6 +725,22 @@ impl Compiler {
 
             self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
         }else{
+            match self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type {
+                TokenType::INT => {
+                    self.get_cur_chunk().push_value(Value::Int(0));
+                },
+                TokenType::FLOAT => {
+                    self.get_cur_chunk().push_value(Value::Float(0.0));
+                },
+                TokenType::BOOL => {
+                    self.get_cur_chunk().push_value(Value::Bool(true));
+                },
+                TokenType::NULL => {
+                    self.get_cur_chunk().push_value(Value::Null);
+                },
+                _ => {},
+            }
+
             self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
         }
 
@@ -827,6 +844,9 @@ impl Compiler {
             struct_obj.locals.push(Local { name: field_name, local_type: field_type, is_redirected: false, redirect_pos: 0 });
         }
 
+        // need to do that, because methods will not be compiled otherwise
+        self.structs.insert(name.clone(), struct_obj.clone());
+
         if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::METHODS) {
             self.parser.advance();
             self.mth_stmt(&mut struct_obj);
@@ -839,17 +859,27 @@ impl Compiler {
         let pos = self.get_struct_symbol_pos(name.clone());
         self.parser.symbols[pos].arg_count = struct_obj.locals.len();
 
-        self.structs.insert(name, struct_obj.clone());
+        self.structs.insert(name.clone(), struct_obj.clone());
 
         self.emit_byte(OpCode::STRUCT_DEC(struct_obj), self.line);
         
         self.scope_depth -= 1;
     }
 
-    pub fn mth_call(&mut self, output_type: TokenType) {
+    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, instance_name: String, is_self: bool) {
         self.parser.consume(TokenType::LEFT_PAREN);
 
+        if is_self {
+            self.emit_byte(OpCode::GET_INSTANCE_RF, self.line);
+
+            let pos = self.get_instance_local_pos(instance_name);
+            self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
+        }
+
+        let mut arg_count = 0;
         while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
+            arg_count += 1;
+            
             self.expression();
 
             if self.parser.cur.token_type == TokenType::COMMA {
@@ -857,6 +887,12 @@ impl Compiler {
             }
         }
         self.parser.consume(TokenType::RIGHT_PAREN);
+
+        if arg_count != mth_arg_count {
+            errors::error_message("COMPILER ERROR",
+            format!("Expected to find {} arguments but found: {} {}:", mth_arg_count, arg_count, self.line));
+            std::process::exit(1);
+        }
 
         match output_type {
             TokenType::INT => {
@@ -882,9 +918,17 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
-            let mth = self.fn_declare(true);
+            let name = self.parser.cur.value.iter().collect::<String>();
 
-            struct_obj.methods.insert(mth.name.clone(), mth);
+            if struct_obj.methods.contains_key(&name) {
+                errors::error_message("COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_obj.name, self.line));
+                std::process::exit(1);
+            }
+
+            let root_struct_pos = self.get_struct_symbol_pos(struct_obj.name.clone());
+            let mut mth = self.fn_declare(true, root_struct_pos);
+
+            struct_obj.methods.insert(name, mth);
         }
 
         self.parser.consume(TokenType::RIGHT_BRACE);
@@ -1017,7 +1061,7 @@ impl Compiler {
         }
     }
 
-    pub fn fn_declare(&mut self, is_mth: bool) -> Function {
+    pub fn fn_declare(&mut self, is_mth: bool, root_struct_pos: usize) -> Function {
         let name = self.parser.cur.value.iter().collect::<String>();
 
         if (self.scope_depth != 0 && !is_mth) || (self.scope_depth == 0 && is_mth) {
@@ -1035,6 +1079,24 @@ impl Compiler {
 
             self.parser.consume(TokenType::IDENTIFIER);
             let arg_name = self.parser.prev.value.iter().collect::<String>();
+
+            if arg_name == "self" && is_mth {
+                if function.arg_count != 1 {
+                    errors::error_message("COMPILE ERROR", format!("\"self\" keyword need to be first in argument list {}:", self.line));
+                    std::process::exit(1)
+                }
+
+                function.is_self_arg =  true;
+                function.arg_count -= 1;
+
+                if self.parser.cur.token_type == TokenType::COMMA {
+                    self.parser.consume(TokenType::COMMA);
+                }
+
+                function.instances.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), is_redirected: false, redirect_pos: 0  });
+
+                continue;
+            }
 
             self.parser.consume(TokenType::COLON);
             let arg_type = match self.parser.cur.token_type {
@@ -1127,7 +1189,7 @@ impl Compiler {
     pub fn declare(&mut self) {
         match self.parser.prev.token_type {
             TokenType::KEYWORD(Keywords::FN) => {
-                let _ = self.fn_declare(false);
+                let _ = self.fn_declare(false, 0);
             },
             TokenType::KEYWORD(Keywords::VAR) => {
                 self.var_declare();
