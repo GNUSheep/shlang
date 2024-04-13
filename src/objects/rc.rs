@@ -1,4 +1,4 @@
-use crate::vm::value;
+use crate::vm::value::{self, Value};
 
 pub trait Object {
     fn inc_counter(&mut self);
@@ -51,5 +51,44 @@ impl ReferenceCounter {
 
     pub fn remove_all(&mut self) {
         self.heap = vec![];
+    }
+}
+
+pub struct RefObject {
+    pub ref_index: usize,
+    pub rc_counter: usize,
+    pub index: usize,
+}
+
+impl Object for RefObject {
+    fn inc_counter(&mut self) {
+        self.rc_counter += 1;
+    }
+    
+    fn dec_counter(&mut self) {
+        self.rc_counter -= 1;
+    }
+
+    fn get_rc_counter(&self) -> usize {
+        self.rc_counter
+    }
+
+    fn set_index(&mut self, index: usize) {
+        self.index = index;
+    }
+
+    fn get_index(&self) -> usize {
+        self.index
+    }
+
+    fn get_values(&self) -> Vec<Value> {
+        vec![Value::Int(self.ref_index as i64)]
+    }
+
+    fn set_value(&mut self, _pos: usize, _value: Value) {
+    }
+
+    fn get_arg_count(&self) -> usize {
+        0
     }
 }

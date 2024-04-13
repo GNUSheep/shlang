@@ -1,7 +1,8 @@
-use crate::vm::{
-    bytecode::{Chunk, Instruction, OpCode},
+use crate::{
+    objects::rc::RefObject, 
+    vm::{bytecode::{Chunk, Instruction, OpCode},
     value::Value,
-};
+}};
 
 use crate::objects::{rc, functions::NativeFn};
 use crate::compiler::errors;
@@ -122,7 +123,6 @@ impl VM {
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
 
-                println!("{:?}, {:?}", instance_fields, field_pos);
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
@@ -131,9 +131,10 @@ impl VM {
 
                 self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
             },
-            OpCode::GET_INSTANCE_RF => {
+            OpCode::GET_INSTANCE_RF(pos) => {
                 // need to find if other method with using it, would be better
-                self.frames[self.ip].stack.push(Value::InstanceRef);
+                self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 0, index: 0}));
+                self.frames[self.ip].stack.push(Value::InstanceRef(0));
             },
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];
@@ -142,7 +143,7 @@ impl VM {
                 let adder: usize = if mth.is_self_arg { 1 }else { 0 };
                 for _ in 0..mth.arg_count + adder {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if value == Value::InstanceRef {
+                    if matches!(Value::InstanceRef(_), value) {
                         instance_rf_count += 1;
                     }else {
                         stack.push(value);

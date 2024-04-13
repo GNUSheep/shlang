@@ -537,7 +537,7 @@ impl Compiler {
         if pos != -1 {
             match self.get_cur_instances()[pos as usize].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::GET_INSTANCE_RF, self.line);
+                    self.emit_byte(OpCode::GET_INSTANCE_RF(0), self.line);
     
                     let pos = self.get_instance_local_pos(var_name);
     
@@ -687,7 +687,7 @@ impl Compiler {
 
             return
         }
-        println!("{:?}, {:?}, {:?}", field_name, name, root_struct_name);
+
         let field_index = self.structs.get(&root_struct_name).unwrap().locals
             .iter()
             .enumerate()
@@ -803,9 +803,10 @@ impl Compiler {
 
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.line);
 
-        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0  });
+        let len = self.parser.symbols.len();
+        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: len });
 
-        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(0)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
+        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
     }
 
     pub fn struct_declare(&mut self) {
@@ -868,11 +869,12 @@ impl Compiler {
 
     pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, instance_name: String, is_self: bool) {
         self.parser.consume(TokenType::LEFT_PAREN);
-
         if is_self {
-            self.emit_byte(OpCode::GET_INSTANCE_RF, self.line);
-
             let pos = self.get_instance_local_pos(instance_name);
+
+            let heap_pos = self.get_cur_instances()[pos].redirect_pos;
+            self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
+
             self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
         }
 
@@ -926,7 +928,7 @@ impl Compiler {
             }
 
             let root_struct_pos = self.get_struct_symbol_pos(struct_obj.name.clone());
-            let mut mth = self.fn_declare(true, root_struct_pos);
+            let mth = self.fn_declare(true, root_struct_pos);
 
             struct_obj.methods.insert(name, mth);
         }
@@ -951,6 +953,24 @@ impl Compiler {
         pos as usize
     }
 
+    pub fn get_instance_symbol_pos(&mut self, fn_name: String) -> usize {
+        let pos = self.parser.symbols
+            .iter()
+            .enumerate()
+            .find(|(_, name)| *name.name == fn_name && name.symbol_type != TokenType::KEYWORD(Keywords::STRUCT))
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos == -1 {
+            errors::error_message("COMPILER ERROR",
+            format!("Symbol: \"{}\" is not defined as function in this scope {}:", fn_name, self.line));
+            std::process::exit(1);
+        }
+
+        pos as usize
+    }
+
+    
     pub fn get_struct_symbol_pos(&mut self, struct_name: String) -> usize {
         let pos = self.parser.symbols
             .iter()
