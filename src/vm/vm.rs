@@ -122,18 +122,35 @@ impl VM {
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
-
+                println!("{:?}", instance_fields);
+                match instance_fields[0] {
+                    Value::InstanceRef(index) => {
+                        let fields = self.rc.get_object(index).get_values();
+                        println!("{:?}", index);
+                        self.frames[self.ip].stack.push(fields[field_pos].clone());
+                        return
+                    },
+                    _ => {},
+                };
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
                 let len = self.frames[self.ip].stack.len() - 1;
                 let value = self.frames[self.ip].stack[len].clone();
 
+                match self.rc.get_object(self.frames[self.ip].offset + pos).get_values()[0] {
+                    Value::InstanceRef(index) => {
+                        self.rc.get_object(index).set_value(field_pos, value);
+                        return
+                    },
+                    _ => {},
+                };
+
                 self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
             },
             OpCode::GET_INSTANCE_RF(pos) => {
                 // need to find if other method with using it, would be better
-                self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 0, index: 0}));
+                self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(0));
             },
             OpCode::METHOD_CALL(mth) => {
@@ -143,7 +160,7 @@ impl VM {
                 let adder: usize = if mth.is_self_arg { 1 }else { 0 };
                 for _ in 0..mth.arg_count + adder {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if matches!(Value::InstanceRef(_), value) {
+                    if matches!(value, Value::InstanceRef(_)) {
                         instance_rf_count += 1;
                     }else {
                         stack.push(value);
@@ -164,7 +181,7 @@ impl VM {
 
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if value == Value::InstanceRef {
+                    if matches!(value, Value::InstanceRef(_)) {
                         instance_rf_count += 1;
                     }else {
                         stack.push(value);

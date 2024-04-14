@@ -42,7 +42,7 @@ impl ReferenceCounter {
     }
 
     pub fn remove(&mut self) {
-        for i in 0..self.heap.len() {
+        for i in (0..self.heap.len()).rev() {
             if self.get_object(i).get_rc_counter() == 0 {
                 self.heap.remove(i);
             }
@@ -82,7 +82,7 @@ impl Object for RefObject {
     }
 
     fn get_values(&self) -> Vec<Value> {
-        vec![Value::Int(self.ref_index as i64)]
+        vec![Value::InstanceRef(self.ref_index)]
     }
 
     fn set_value(&mut self, _pos: usize, _value: Value) {

@@ -11,6 +11,7 @@ pub struct Local {
     pub local_type: TokenType,
     pub is_redirected: bool,
     pub redirect_pos: usize,
+    pub rf_index: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]
