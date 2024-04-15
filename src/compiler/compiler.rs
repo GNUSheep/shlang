@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn}, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    objects::{functions::{Function, Local, NativeFn}, rc::Object, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -540,8 +540,7 @@ impl Compiler {
                     let pos = self.get_instance_local_pos(var_name);
                     
                     let heap_pos = self.get_cur_instances()[pos].rf_index;
-                    println!("{:?}", self.get_cur_instances()[pos]);
-                    println!("{:?}", self.parser.symbols);
+                    
                     self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
                     
                     self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
@@ -797,17 +796,18 @@ impl Compiler {
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
 
-        let instance_obj = StructInstance::new(pos);
+        let mut instance_obj = StructInstance::new(pos);
 
         if field_counts != self.parser.symbols[pos].arg_count {
             errors::error_message("COMPILER ERROR",
             format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.line));
             std::process::exit(1);
         }
+        let len = self.parser.symbols.len();
+        instance_obj.set_index(len);
 
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.line);
 
-        let len = self.parser.symbols.len();
         self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })

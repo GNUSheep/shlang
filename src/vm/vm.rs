@@ -122,11 +122,11 @@ impl VM {
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
-                println!("{:?}", instance_fields);
                 match instance_fields[0] {
                     Value::InstanceRef(index) => {
-                        let fields = self.rc.get_object(index).get_values();
-                        println!("{:?}", index);
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
                         return
                     },
@@ -140,7 +140,9 @@ impl VM {
 
                 match self.rc.get_object(self.frames[self.ip].offset + pos).get_values()[0] {
                     Value::InstanceRef(index) => {
-                        self.rc.get_object(index).set_value(field_pos, value);
+                        let pos = self.rc.find_object(index);
+
+                        self.rc.get_object(pos).set_value(field_pos, value);
                         return
                     },
                     _ => {},

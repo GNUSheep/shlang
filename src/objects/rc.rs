@@ -32,6 +32,15 @@ impl ReferenceCounter {
         &mut self.heap[index]
     }
 
+    pub fn find_object(&mut self, index: usize) -> usize {
+        for i in 0..self.heap.len() {
+            if self.heap[i].get_index() == index {
+                return i;
+            }
+        }
+        panic!();
+    }
+
     pub fn inc_counter(&mut self, index: usize) {
         self.get_object(index).inc_counter();
     }
