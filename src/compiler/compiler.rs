@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn}, rc::Object, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    objects::{functions::{Function, Local, NativeFn}, rc::Object, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -57,6 +57,8 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::KEYWORD(Keywords::WHILE), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::FOR), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::BREAK), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+
+        (TokenType::STRING, ParseRule { prefix: Some(Compiler::string_parse), infix: None, prec: Precedence::NONE }),
 
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
@@ -162,8 +164,9 @@ impl Parser {
 
     pub fn get_symbols(&mut self) {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
-        let mut is_main_fn_found = false;
+        symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
 
+        let mut is_main_fn_found = false;
         for token_pair in self.tokens.clone().windows(2) {
             if token_pair[0].token_type == TokenType::KEYWORD(Keywords::FN) {
                 let fn_name = token_pair[1].value.iter().collect::<String>();
@@ -479,6 +482,29 @@ impl Compiler {
         }
 
         self.parser.consume(TokenType::RIGHT_BRACE);
+    }
+
+    pub fn string_parse(&mut self) {
+        // todo tmp declare and dec rc 
+        self.string_dec()
+    }
+ 
+    pub fn string_dec(&mut self) {
+        let pos = self.get_struct_symbol_pos("String".to_string());
+
+        let mut instance_obj = StructInstance::new(pos);
+
+        let len = self.parser.symbols.len();
+        instance_obj.set_index(len);
+
+        let value = self.parser.prev.value.iter().collect::<String>();
+        instance_obj.fields_values.push(Value::String(value.clone()));
+
+        self.emit_byte(OpCode::STRING_DEC(instance_obj), self.line);
+
+        self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len });
+
+        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
     }
 
     pub fn identifier(&mut self) {
@@ -1573,6 +1599,11 @@ impl Compiler {
     }
 
     pub fn compile(&mut self) -> Chunk {
+        // more native types
+        let string_type = StringObj::init();
+        self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
+        self.structs.insert("String".to_string(), string_type.clone());
+
         self.parser.advance();
         loop {
             self.line = self.parser.cur.line;

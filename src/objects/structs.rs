@@ -15,8 +15,8 @@ pub struct Struct {
     pub output_type: TokenType,
     pub field_count: usize,
     pub methods: HashMap<String, Function>,
-    rc_counter: usize,
-    index: usize,
+    pub rc_counter: usize,
+    pub index: usize,
 }
 
 impl Object for Struct {

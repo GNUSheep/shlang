@@ -30,6 +30,8 @@ pub enum OpCode {
     DEC_RC(usize),
     INC_RC(usize),
 
+    STRING_DEC(structs::StructInstance),
+
     CONSTANT_BOOL(usize),
     EQ_BOOL,
     NEG_EQ_BOOL,

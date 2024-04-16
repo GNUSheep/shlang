@@ -111,6 +111,10 @@ impl VM {
     
             },
 
+            OpCode::STRING_DEC(instance) => {
+                self.rc.push(Box::new(instance));
+            },
+
             OpCode::INSTANCE_DEC(mut instance) => {
                 let field_count = self.rc.get_object(instance.root_struct_pos).get_arg_count();
                 for _ in 0..field_count {
