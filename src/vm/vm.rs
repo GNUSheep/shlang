@@ -259,7 +259,10 @@ impl VM {
             },
             OpCode::INC_RC(pos) => {
                 self.rc.inc_counter(self.frames[self.ip].offset+pos);
-            }
+            },
+            OpCode::RF_REMOVE => {
+                self.rc.remove();
+            },
 
             OpCode::VAR_CALL(index) => {
                 let value = self.frames[self.ip].stack[index].clone();
@@ -336,6 +339,7 @@ impl VM {
             OpCode::ADD_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
+
                 self.frames[self.ip].stack.push(Value::Int(b+a));
             },
             OpCode::SUB_INT => {
@@ -367,7 +371,7 @@ impl VM {
             OpCode::NEG_EQ_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
-    
+
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
             },
             OpCode::GREATER_INT => {

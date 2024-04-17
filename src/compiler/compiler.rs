@@ -10,6 +10,7 @@ use super::errors::{self, error_message};
 pub struct LoopInfo {
     pub start: usize,
     pub locals_start: usize,
+    pub instance_start: usize,
 }
 
 impl LoopInfo {
@@ -17,6 +18,7 @@ impl LoopInfo {
         LoopInfo {
             start: 0,
             locals_start: 0,
+            instance_start: 0,
         }
     }
 }
@@ -501,6 +503,9 @@ impl Compiler {
         instance_obj.fields_values.push(Value::String(value.clone()));
 
         self.emit_byte(OpCode::STRING_DEC(instance_obj), self.line);
+
+        let instance_pos = self.get_cur_instances().len();
+        self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos, 0), self.line);
 
         self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len });
 
@@ -1287,6 +1292,7 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
+        let instance_counter = self.get_cur_instances().len();
 
         self.block();
 
@@ -1294,6 +1300,17 @@ impl Compiler {
             self.emit_byte(OpCode::POP, self.line);
             self.get_cur_locals().pop();
         }
+
+        for index in 0..self.get_cur_instances().len() - instance_counter {
+            match self.get_cur_instances()[index].local_type.clone() {
+                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.get_cur_instances().pop();
+                },
+                _ => {},
+            }
+        }
+        self.emit_byte(OpCode::RF_REMOVE, self.line);
 
         let index_exit_if = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::JUMP(0), self.line);
@@ -1346,12 +1363,17 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
+        let instance_counter = self.get_cur_instances().len();
         self.scope_depth += 1;
 
+        self.loop_info.locals_start = local_counter;
+        self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
 
         self.block();
 
+        self.loop_info.locals_start = local_counter;
+        self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
         self.scope_depth -= 1;
 
@@ -1359,6 +1381,17 @@ impl Compiler {
             self.emit_byte(OpCode::POP, self.line);
             self.get_cur_locals().pop();
         }
+
+        for index in 0..self.get_cur_instances().len() - self.loop_info.instance_start {
+            match self.get_cur_instances()[index].local_type.clone() {
+                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.get_cur_instances().pop();
+                },
+                _ => {},
+            }
+        }
+        self.emit_byte(OpCode::RF_REMOVE, self.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
         self.emit_byte(OpCode::LOOP(offset_loop), self.line);
@@ -1419,7 +1452,7 @@ impl Compiler {
         self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.line);
         self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.line);
 
-        self.emit_byte(OpCode::NEG_EQ_INT, self.line);
+        self.emit_byte(OpCode::EQ_LESS_INT, self.line);
         //
 
         let index_exit_stmt = self.get_cur_chunk().code.len();
@@ -1429,15 +1462,17 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
+        let instance_counter = self.get_cur_instances().len();
         self.scope_depth += 1;
 
         self.loop_info.locals_start = local_counter;
+        self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
-
         self.block();
 
         self.loop_info.start = loop_start_index;
         self.loop_info.locals_start = local_counter;
+        self.loop_info.instance_start = instance_counter;
         self.scope_depth -= 1;
 
         // adding
@@ -1450,10 +1485,21 @@ impl Compiler {
         self.emit_byte(OpCode::VAR_SET(len_locals - 3), self.line);
         //
 
-        for _ in 0..self.get_cur_locals().len() - local_counter {
+        for _ in 0..self.get_cur_locals().len() - local_counter + 1 {
             self.emit_byte(OpCode::POP, self.line);
             self.get_cur_locals().pop();
         }
+
+        for index in 0..self.get_cur_instances().len() - self.loop_info.instance_start {
+            match self.get_cur_instances()[index].local_type.clone() {
+                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.get_cur_instances().pop();
+                },
+                _ => {},
+            }
+        }
+        self.emit_byte(OpCode::RF_REMOVE, self.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
         self.emit_byte(OpCode::LOOP(offset_loop), self.line);
@@ -1463,10 +1509,11 @@ impl Compiler {
 
         self.emit_byte(OpCode::POP, self.line);
 
-        for _ in 0..3{
+        for _ in 0..2 {
             self.emit_byte(OpCode::POP, self.line);
             self.get_cur_locals().pop();
         }
+        self.emit_byte(OpCode::POP, self.line);
     }
 
     pub fn and_op(&mut self) {

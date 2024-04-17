@@ -121,6 +121,7 @@ impl std::fmt::Display for Value {
             Value::Float(val) => write!(output, "{}", val),
             Value::Int(val) => write!(output, "{}", val),
             Value::Bool(val) => write!(output, "{}", val),
+            Value::String(val) => write!(output, "{}", val),
             Value::Null => write!(output, "null"),
             v => {
                 errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));

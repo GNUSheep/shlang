@@ -29,6 +29,7 @@ pub enum OpCode {
     POP,
     DEC_RC(usize),
     INC_RC(usize),
+    RF_REMOVE,
 
     STRING_DEC(structs::StructInstance),
 
