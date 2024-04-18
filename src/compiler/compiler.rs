@@ -507,6 +507,8 @@ impl Compiler {
         let instance_pos = self.get_cur_instances().len();
         self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos, 0), self.line);
 
+        self.get_cur_chunk().push_value(Value::String(String::new()));
+
         self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
@@ -569,13 +571,12 @@ impl Compiler {
             match self.get_cur_instances()[pos as usize].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     let pos = self.get_instance_local_pos(var_name);
-                    
+
                     let heap_pos = self.get_cur_instances()[pos].rf_index;
                     
                     self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
-                    
                     self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
-                    
+
                     return
                 },
                 _ => {},
@@ -593,6 +594,9 @@ impl Compiler {
             },
             TokenType::BOOL => {
                 self.get_cur_chunk().push_value(Value::Bool(true));
+            },
+            TokenType::STRING => {
+                self.get_cur_chunk().push_value(Value::String(String::new()));
             },
             local_type => {
                 errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.line));
@@ -622,6 +626,7 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::INT) |
             TokenType::KEYWORD(Keywords::FLOAT) |
             TokenType::KEYWORD(Keywords::BOOL) |
+            TokenType::KEYWORD(Keywords::STRING) |
             TokenType::IDENTIFIER => {},
             _ => {
                 errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
@@ -630,12 +635,12 @@ impl Compiler {
         };
 
         let var_type = match self.parser.cur.token_type {
-            TokenType::KEYWORD(keyword) => keyword.convert(),
-            TokenType::IDENTIFIER => {
+            TokenType::IDENTIFIER | TokenType::KEYWORD(Keywords::STRING) => {
                 let pos = self.get_struct_symbol_pos(self.parser.cur.value.iter().collect::<String>());
 
                 TokenType::STRUCT(pos)
             }
+            TokenType::KEYWORD(keyword) => keyword.convert(),
             _ => {
                 errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
                 std::process::exit(1);
@@ -646,7 +651,6 @@ impl Compiler {
         match var_type {
             TokenType::STRUCT(pos) => {
                 self.instance_declare(pos, var_name);
-
                 return
             }
             _ => {},
@@ -771,6 +775,9 @@ impl Compiler {
                 TokenType::NULL => {
                     self.get_cur_chunk().push_value(Value::Null);
                 },
+                TokenType::STRING => {
+                    self.get_cur_chunk().push_value(Value::String(String::new()));
+                },
                 _ => {},
             }
 
@@ -790,9 +797,17 @@ impl Compiler {
         self.parser.consume(TokenType::EQ);
 
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
-            let value = self.parser.cur.value.iter().collect::<String>();
+            if self.parser.cur.token_type == TokenType::STRING {
+                let pos = self.get_cur_instances().len();
+                self.compile_line();
+                self.get_cur_instances()[pos].name = name;
 
+                return
+            }
+            
+            let value = self.parser.cur.value.iter().collect::<String>();
             let pos = self.get_instance_local_pos(value);
+
             let local_type = self.get_cur_instances()[pos].local_type;
             let local_rf_pos = self.get_cur_instances()[pos].rf_index;
             
@@ -944,6 +959,9 @@ impl Compiler {
             TokenType::NULL => {
                 self.get_cur_chunk().push_value(Value::Null);
             },
+            TokenType::STRING => {
+                self.get_cur_chunk().push_value(Value::String(String::new()));
+            }
             output_type => {
                 errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
                 std::process::exit(1);
@@ -1089,6 +1107,9 @@ impl Compiler {
                 },
                 TokenType::NULL => {
                     self.get_cur_chunk().push_value(Value::Null);
+                },
+                TokenType::STRING => {
+                    self.get_cur_chunk().push_value(Value::String(String::new()));
                 },
                 output_type => {
                     errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
