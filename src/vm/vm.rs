@@ -127,7 +127,7 @@ impl VM {
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
                 match instance_fields[0] {
-                    Value::InstanceRef(index) => {
+                    Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let pos = self.rc.find_object(index);
 
                         let fields = self.rc.get_object(pos).get_values();
@@ -143,7 +143,7 @@ impl VM {
                 let value = self.frames[self.ip].stack[len].clone();
 
                 match self.rc.get_object(self.frames[self.ip].offset + pos).get_values()[0] {
-                    Value::InstanceRef(index) => {
+                    Value::InstanceRef(index) | Value::StringRef(index) => {
                         let pos = self.rc.find_object(index);
 
                         self.rc.get_object(pos).set_value(field_pos, value);
@@ -157,7 +157,12 @@ impl VM {
             OpCode::GET_INSTANCE_RF(pos) => {
                 // need to find if other method with using it, would be better
                 self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 1, index: 0}));
-                self.frames[self.ip].stack.push(Value::InstanceRef(0));
+                self.frames[self.ip].stack.push(Value::InstanceRef(pos));
+            },
+            OpCode::GET_STRING_RF(pos) => {
+                // need to find if other method with using it, would be better
+                self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 1, index: 0}));
+                self.frames[self.ip].stack.push(Value::StringRef(pos));
             },
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];
@@ -166,7 +171,7 @@ impl VM {
                 let adder: usize = if mth.is_self_arg { 1 }else { 0 };
                 for _ in 0..mth.arg_count + adder {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if matches!(value, Value::InstanceRef(_)) {
+                    if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
                         instance_rf_count += 1;
                     }else {
                         stack.push(value);
@@ -187,7 +192,7 @@ impl VM {
 
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if matches!(value, Value::InstanceRef(_)) {
+                    if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
                         instance_rf_count += 1;
                     }else {
                         stack.push(value);
@@ -205,7 +210,17 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let len = self.frames[self.ip].stack.len() - 1;
                 for i in 0..self.rc.get_object(index).get_arg_count() {
-                    stack.push(self.frames[self.ip].stack[len - i].clone());
+                    let value = self.frames[self.ip].stack[len - i].clone();
+                    match value {
+                        Value::StringRef(index) => {
+                            let pos = self.rc.find_object(index);
+
+                            let fields = self.rc.get_object(pos).get_values();
+
+                            stack.push(fields[0].clone());
+                        },
+                        _ => stack.push(value),
+                    }
                 }
                 stack.reverse();
 
@@ -220,7 +235,17 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let len = self.frames[self.ip].stack.len() - 1;
                 for i in 0..arg_count {
-                    stack.push(self.frames[self.ip].stack[len - i].clone());
+                    let value = self.frames[self.ip].stack[len - i].clone();
+                    match value {
+                        Value::StringRef(index) => {
+                            let pos = self.rc.find_object(index);
+
+                            let fields = self.rc.get_object(pos).get_values();
+                            println!("{:?}", fields);
+                            stack.push(fields[0].clone());
+                        },
+                        _ => stack.push(value),
+                    }
                 }
                 stack.reverse();
 

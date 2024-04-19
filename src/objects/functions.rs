@@ -12,6 +12,7 @@ pub struct Local {
     pub is_redirected: bool,
     pub redirect_pos: usize,
     pub rf_index: usize,
+    pub is_string: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
