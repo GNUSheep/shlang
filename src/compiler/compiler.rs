@@ -221,6 +221,7 @@ impl Parser {
 pub struct Compiler {
     pub parser: Parser,
     cur_function: Function,
+    functions: HashMap<String, Function>,
     scope_depth: u32,
     line: u32,
     symbol_to_hold: usize,
@@ -240,6 +241,7 @@ impl Compiler {
                 symbols: vec![],
             },
             cur_function: Function::new(String::new()),
+            functions: HashMap::new(),
             scope_depth: 0,
             line: 0,
             symbol_to_hold: 0,
@@ -567,8 +569,6 @@ impl Compiler {
             .map(|(index, _)| index as i32)
             .unwrap_or(-1);
 
-        println!("{:?}", self.get_cur_instances());
-
         if pos != -1 {
             match self.get_cur_instances()[pos as usize].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
@@ -576,7 +576,7 @@ impl Compiler {
 
                     let heap_pos = self.get_cur_instances()[pos].rf_index;
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
-
+                    println!("LEWA: {:?}", self.get_cur_instances()[pos]);
                     if instance_is_string {
                         self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.line);
                     }else {
@@ -790,8 +790,6 @@ impl Compiler {
 
             self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
         }
-
-
     }
 
     pub fn instance_declare(&mut self, pos: usize, name: String) {
@@ -817,7 +815,7 @@ impl Compiler {
 
             let local_type = self.get_cur_instances()[pos].local_type;
             let local_rf_pos = self.get_cur_instances()[pos].rf_index;
-            
+
             self.get_cur_instances().push(Local{ name: name, local_type: local_type, is_redirected: true, redirect_pos: pos, rf_index: local_rf_pos, is_string: false });
 
             return
@@ -1248,6 +1246,8 @@ impl Compiler {
         }
 
         let op_code = OpCode::FUNCTION_DEC(self.cur_function.clone());
+
+        self.functions.insert(name, enclosing.clone());
 
         self.cur_function = enclosing;
 
