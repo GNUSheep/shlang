@@ -905,19 +905,18 @@ impl Compiler {
 
         if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::METHODS) {
             self.parser.advance();
-            self.mth_stmt(&mut struct_obj);
+            self.mth_stmt(name.clone());
         }
 
         self.parser.consume(TokenType::RIGHT_BRACE);
         
-        struct_obj.field_count = struct_obj.locals.len();
+        let locals_len = self.structs.get(&name.clone()).unwrap().locals.len();
+        self.structs.get_mut(&(name.clone())).unwrap().field_count = locals_len; 
 
         let pos = self.get_struct_symbol_pos(name.clone());
-        self.parser.symbols[pos].arg_count = struct_obj.locals.len();
+        self.parser.symbols[pos].arg_count = locals_len;
 
-        self.structs.insert(name.clone(), struct_obj.clone());
-
-        self.emit_byte(OpCode::STRUCT_DEC(struct_obj), self.line);
+        self.emit_byte(OpCode::STRUCT_DEC(self.structs.get(&name).unwrap().clone()), self.line);
         
         self.scope_depth -= 1;
     }
@@ -974,21 +973,21 @@ impl Compiler {
         };
     }
 
-    pub fn mth_stmt(&mut self, struct_obj: &mut Struct) {
+    pub fn mth_stmt(&mut self, struct_name: String) {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
             let name = self.parser.cur.value.iter().collect::<String>();
 
-            if struct_obj.methods.contains_key(&name) {
-                errors::error_message("COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_obj.name, self.line));
+            if self.structs.get(&struct_name).unwrap().methods.contains_key(&name) {
+                errors::error_message("COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_name, self.line));
                 std::process::exit(1);
             }
 
-            let root_struct_pos = self.get_struct_symbol_pos(struct_obj.name.clone());
+            let root_struct_pos = self.get_struct_symbol_pos(struct_name.clone());
             let mth = self.fn_declare(true, root_struct_pos);
 
-            struct_obj.methods.insert(name, mth);
+            self.structs.get_mut(&struct_name.clone()).unwrap().methods.insert(name, mth);
         }
 
         self.parser.consume(TokenType::RIGHT_BRACE);

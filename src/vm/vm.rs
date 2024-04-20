@@ -238,10 +238,9 @@ impl VM {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            println!("ONDEX: {:?}", index);
                             let pos = self.rc.find_object(index);
 
-                            let fields = self.rc.get_object(index).get_values();
+                            let fields = self.rc.get_object(pos).get_values();
                             println!("{:?}", fields);
                             stack.push(fields[0].clone());
                         },
