@@ -506,8 +506,7 @@ impl Compiler {
 
         self.emit_byte(OpCode::STRING_DEC(instance_obj), self.line);
 
-        let instance_pos = self.get_cur_instances().len();
-        self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos, 0), self.line);
+        self.emit_byte(OpCode::GET_STRING_RF(len), self.line);
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
 
@@ -576,9 +575,11 @@ impl Compiler {
 
                     let heap_pos = self.get_cur_instances()[pos].rf_index;
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
-                    println!("LEWA: {:?}", self.get_cur_instances()[pos]);
                     if instance_is_string {
                         self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.line);
+                        if heap_pos == 0 {
+                            self.emit_byte(OpCode::POP, self.line)
+                        }
                     }else {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
                     }
@@ -925,9 +926,12 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_PAREN);
         if is_self {
             let pos = self.get_instance_local_pos(instance_name);
-
+            println!("{:?}", self.get_cur_instances()[pos]);
             let heap_pos = self.get_cur_instances()[pos].rf_index;
             self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
+            if heap_pos == 0 {
+                self.emit_byte(OpCode::POP, self.line)
+            }
 
             self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
         }
@@ -1184,9 +1188,9 @@ impl Compiler {
                 TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
                     if self.parser.symbols[pos].name == "String" {
                         function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: true });
-                        break
+                    }else {
+                        function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
                     }
-                    function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
                 },
                 _ => {
                     function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
