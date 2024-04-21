@@ -441,6 +441,82 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::Bool(a!=b));
             },
     
+            OpCode::ADD_STRING => {
+                let a = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::StringRef(index) => {
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
+
+                        fields[0].clone()
+                    },
+                    _ => Value::Null,
+                };
+                let b = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::StringRef(index) => {
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
+
+                        fields[0].clone()
+                    },
+                    Value::String(val) => Value::String(val),
+                    _ => {
+                        Value::Null
+                    },
+                };
+    
+                self.frames[self.ip].stack.push(Value::String(b.get_string()+&a.get_string()));
+            },
+            OpCode::EQ_STRING => {
+                let a = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::StringRef(index) => {
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
+
+                        fields[0].clone()
+                    },
+                    _ => Value::Null,
+                };
+                let b = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::StringRef(index) => {
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
+
+                        fields[0].clone()
+                    },
+                    _ => Value::Null,
+                };
+    
+                self.frames[self.ip].stack.push(Value::Bool(a.get_string()==b.get_string()));
+            },
+            OpCode::NEG_EQ_STRING => {
+                let a = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::StringRef(index) => {
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
+
+                        fields[0].clone()
+                    },
+                    _ => Value::Null,
+                };
+                let b = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::StringRef(index) => {
+                        let pos = self.rc.find_object(index);
+
+                        let fields = self.rc.get_object(pos).get_values();
+
+                        fields[0].clone()
+                    },
+                    _ => Value::Null,
+                };
+    
+                self.frames[self.ip].stack.push(Value::Bool(a!=b));
+            },
+
             opcode => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: {:?}", opcode)),
         }
     }

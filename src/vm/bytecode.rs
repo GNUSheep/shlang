@@ -33,6 +33,9 @@ pub enum OpCode {
     RF_REMOVE,
 
     STRING_DEC(structs::StructInstance),
+    ADD_STRING,
+    EQ_STRING,
+    NEG_EQ_STRING,
 
     CONSTANT_BOOL(usize),
     EQ_BOOL,

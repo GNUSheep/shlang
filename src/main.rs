@@ -16,7 +16,7 @@ fn run(file_path: &String) {
     compiler.parser.get_symbols();
 
     let main_chunk = compiler.compile();
-    println!("{:?}", main_chunk);
+
     let mut vm = vm::vm::VM::new();
     let main_frame = vm.declare_all(main_chunk);
 

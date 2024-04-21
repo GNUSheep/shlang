@@ -70,6 +70,17 @@ impl Value {
             },
         }
     }
+
+    pub fn get_string(&self) -> String {
+        match self {
+            Value::String(val) => return val.clone(),
+            _ => {
+                println!("{:?}", self);
+                errors::conversion_error("Enum Value<_>", "String");
+                std::process::exit(1);
+            },
+        }
+    }
 }
 
 impl Neg for Value {

@@ -330,6 +330,16 @@ impl Compiler {
                         std::process::exit(1);
                     }
                 };
+            },
+            TokenType::STRING => {
+                match logic_token.token_type {
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_STRING, self.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_STRING, self.line),
+                    _ => {
+                        errors::error_unexpected(logic_token, "logic operator function");
+                        std::process::exit(1);
+                    }
+                };
             }
             _ => {
                 errors::error_unexpected_token_type(constants_type, self.line, "logic operator function");
@@ -447,6 +457,15 @@ impl Compiler {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
                     }
+                };
+            },
+            TokenType::STRING => {
+                match arithmetic_token.token_type {
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_STRING, self.line),
+                    _ => {
+                        errors::error_unexpected(arithmetic_token, "arithmetic function");
+                        std::process::exit(1);
+                    }        
                 };
             },
             _ => {
