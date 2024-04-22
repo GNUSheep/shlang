@@ -13,7 +13,6 @@ fn run(file_path: &String) {
     let tokens = scanner.get_tokens();
 
     let mut compiler = compiler::compiler::Compiler::new(tokens);
-    compiler.parser.get_symbols();
 
     let main_chunk = compiler.compile();
 

@@ -93,8 +93,8 @@ pub struct NativeFn {
     pub name: String,
     pub function: fn(Vec<Value>) -> Value,
     pub arg_count: usize,
-    rc_counter: usize,
-    index: usize,
+    pub rc_counter: usize,
+    pub index: usize,
 }
 
 impl NativeFn {

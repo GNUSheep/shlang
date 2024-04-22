@@ -64,7 +64,8 @@ impl Value {
     pub fn get_fn(&self) -> fn(Vec<Value>) -> Value {
         match self {
             Value::Fn(val) => return *val,
-            _ => {
+            val => {
+                println!("Value: {:?}", val);
                 errors::conversion_error("Enum Value<_>", "fn");
                 std::process::exit(1);
             },

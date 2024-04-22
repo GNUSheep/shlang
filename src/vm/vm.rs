@@ -1,5 +1,5 @@
 use crate::{
-    objects::rc::RefObject, 
+    objects::{rc::RefObject, string::StringMethods}, 
     vm::{bytecode::{Chunk, Instruction, OpCode},
     value::Value,
 }};
@@ -58,7 +58,18 @@ impl VM {
                     self.rc.push(Box::new(function));
                 },
                 OpCode::STRUCT_DEC(struct_) => {
+                    let name = struct_.name == "String";
+
                     self.rc.push(Box::new(struct_));
+                    
+                    if name {
+                        let mths_string = StringMethods::get_methods_rc();
+
+                        for obj in mths_string {
+                            self.rc.push(Box::new(obj));
+                        }
+                    }
+                    
                 },
                 _ => errors::error_message("RUNTIME ERROR", format!("Declare all - this error should never prints out")),
             }
@@ -83,8 +94,10 @@ impl VM {
                     
                     let mut instr = self.get_instruction().clone();
 
-                    while matches!(instr.op, OpCode::DEC_RC(_)) && instr.op != OpCode::END_OF_FN {
-                        self.run_instruction(instr);
+                    while instr.op != OpCode::END_OF_FN {
+                        if matches!(instr.op, OpCode::DEC_RC(_)) {
+                            self.run_instruction(instr);
+                        }
 
                         instr = self.get_instruction().clone();
                     }
@@ -167,7 +180,7 @@ impl VM {
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;
-                println!("{:?}", self.frames[self.ip].stack);
+
                 let adder: usize = if mth.is_self_arg { 1 }else { 0 };
                 for _ in 0..mth.arg_count + adder {
                     let value = self.frames[self.ip].stack.pop().unwrap();
@@ -227,6 +240,7 @@ impl VM {
                 if output != Value::Null {
                     self.frames[self.ip].stack.push(output);
                 }
+                println!("{:?}", self.frames[self.ip].stack);
             },
             OpCode::PRINT_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
@@ -279,11 +293,19 @@ impl VM {
             },
 
             OpCode::DEC_RC(pos) => {
+                println!("RF {:?}", self.rc.get_object(self.frames[self.ip].offset+pos).get_rc_counter());
                 self.rc.dec_counter(self.frames[self.ip].offset+pos);
+                println!("CIULIK: {:?}", self.rc.get_object(self.frames[self.ip].offset+pos).get_values());
+                println!("RF {:?}", self.rc.get_object(self.frames[self.ip].offset+pos).get_rc_counter());
             },
             OpCode::INC_RC(pos) => {
                 self.rc.inc_counter(self.frames[self.ip].offset+pos);
             },
+            OpCode::RF_POP(pos) => {
+                while self.rc.get_object(self.frames[self.ip].offset+pos).get_rc_counter() > 0 {
+                    self.rc.get_object(self.frames[self.ip].offset+pos).dec_counter();
+                }
+            }
             OpCode::RF_REMOVE => {
                 self.rc.remove();
             },

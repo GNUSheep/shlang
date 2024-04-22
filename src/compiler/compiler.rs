@@ -164,9 +164,13 @@ impl Parser {
         self.advance();
     }
 
-    pub fn get_symbols(&mut self) {
+    pub fn get_symbols(&mut self, string_mths_offset: usize) {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
         symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
+
+        for _ in 0..string_mths_offset { 
+            symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
+        }
 
         let mut is_main_fn_found = false;
         for token_pair in self.tokens.clone().windows(2) {
@@ -531,7 +535,19 @@ impl Compiler {
 
         self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: true });
 
-        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
+        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+
+        if self.parser.cur.token_type == TokenType::DOT {
+            let len = self.get_cur_instances().len() - 1;
+            self.get_cur_instances()[len].name = value;
+
+            self.instance_call();
+
+            self.get_cur_instances().pop();
+
+            self.emit_byte(OpCode::RF_POP(len), self.line);
+            self.emit_byte(OpCode::RF_REMOVE, self.line);
+        }
     }
 
     pub fn identifier(&mut self) {
@@ -826,7 +842,6 @@ impl Compiler {
                 let pos = self.get_cur_instances().len();
                 self.compile_line();
                 self.get_cur_instances()[pos].name = name;
-
                 return
             }
             
@@ -1703,11 +1718,14 @@ impl Compiler {
     }
 
     pub fn compile(&mut self) -> Chunk {
-        // more native types
-        let string_type = StringObj::init();
-        self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
-        self.structs.insert("String".to_string(), string_type.clone());
+        // more native types, (think about another way)
+        let string_type = StringObj::init(3);
+        self.parser.get_symbols(string_type.clone().methods.len());
 
+        self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
+        self.structs.insert("String".to_string(), string_type);
+
+        
         self.parser.advance();
         loop {
             self.line = self.parser.cur.line;
