@@ -33,12 +33,16 @@ impl StringMethods {
     pub fn get_methods(&mut self) -> HashMap<String, Function> {
         HashMap::from([
             ("len".to_string(), self.pack_into_fn("len".to_string(), TokenType::INT)),
+            ("toLower".to_string(), self.pack_into_fn("toLower".to_string(), TokenType::STRING)),
+            ("toUpper".to_string(), self.pack_into_fn("toUpper".to_string(), TokenType::STRING)),
         ])
     }
 
     pub fn get_methods_rc() -> Vec<NativeFn> {
         vec![
             NativeFn { name: "len".to_string(), function: StringMethods::len, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "toLower".to_string(), function: StringMethods::to_lower, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "toUpper".to_string(), function: StringMethods::to_upper, arg_count: 1, rc_counter: 1, index: 0 },
         ]
     }
 
@@ -57,7 +61,7 @@ impl StringMethods {
 
         function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
         function.chunk.push(Instruction { op: OpCode::NATIVE_FN_CALL(self.cur_pos), line: 1});
-        
+
         if out_type != TokenType::NULL {
             function.chunk.push(Instruction { op: OpCode::RETURN, line: 1});
         }
@@ -72,5 +76,13 @@ impl StringMethods {
 
     fn len(args: Vec<Value>) -> Value {
         Value::Int(args[0].get_string().len() as i64)
+    }
+
+    fn to_upper(args: Vec<Value>) -> Value {
+        Value::String(args[0].get_string().to_ascii_uppercase())
+    }
+
+    fn to_lower(args: Vec<Value>) -> Value {
+        Value::String(args[0].get_string().to_ascii_lowercase())
     }
 }

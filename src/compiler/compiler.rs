@@ -133,6 +133,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     cur: Token,
     prev: Token,
+    line: u32,
     index: usize,
     rules: HashMap<TokenType, ParseRule>,
     symbols: Vec<Symbol>,
@@ -142,6 +143,7 @@ impl Parser {
     pub fn advance(&mut self) {
         self.prev = self.cur.clone();
         self.cur = self.tokens[self.index].clone();
+        self.line = self.prev.line;
         self.index += 1;
 
         if self.cur.token_type == TokenType::ERROR {
@@ -227,7 +229,6 @@ pub struct Compiler {
     cur_function: Function,
     functions: HashMap<String, Function>,
     scope_depth: u32,
-    line: u32,
     symbol_to_hold: usize,
     loop_info: LoopInfo,
     structs: HashMap<String, Struct>,
@@ -240,6 +241,7 @@ impl Compiler {
                 tokens: tokens,
                 cur: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
                 prev: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
+                line: 0,
                 index: 0,
                 rules: init_rules(),
                 symbols: vec![],
@@ -247,7 +249,6 @@ impl Compiler {
             cur_function: Function::new(String::new()),
             functions: HashMap::new(),
             scope_depth: 0,
-            line: 0,
             symbol_to_hold: 0,
             loop_info: LoopInfo::new(),
             structs: HashMap::new(),
@@ -272,8 +273,8 @@ impl Compiler {
         self.parse(Precedence::UNARY);
 
         match negation_token.token_type {
-            TokenType::MINUS => self.emit_byte(OpCode::NEGATE, self.line),
-            TokenType::INTERJ => self.emit_byte(OpCode::NEGATE, self.line),
+            TokenType::MINUS => self.emit_byte(OpCode::NEGATE, self.parser.line),
+            TokenType::INTERJ => self.emit_byte(OpCode::NEGATE, self.parser.line),
             _ => {
                 errors::error_unexpected(self.parser.prev.clone(), "negation function");
                 std::process::exit(1);
@@ -299,12 +300,12 @@ impl Compiler {
         match constants_type {
             TokenType::INT => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_INT, self.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_INT, self.line),
-                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_INT, self.line),
-                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_INT, self.line),
-                    TokenType::LESS => self.emit_byte(OpCode::LESS_INT, self.line),
-                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_INT, self.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_INT, self.parser.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_INT, self.parser.line),
+                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_INT, self.parser.line),
+                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_INT, self.parser.line),
+                    TokenType::LESS => self.emit_byte(OpCode::LESS_INT, self.parser.line),
+                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_INT, self.parser.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -313,12 +314,12 @@ impl Compiler {
             },
             TokenType::FLOAT => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_FLOAT, self.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_FLOAT, self.line),
-                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_FLOAT, self.line),
-                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_FLOAT, self.line),
-                    TokenType::LESS => self.emit_byte(OpCode::LESS_FLOAT, self.line),
-                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_FLOAT, self.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_FLOAT, self.parser.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_FLOAT, self.parser.line),
+                    TokenType::GREATER => self.emit_byte(OpCode::GREATER_FLOAT, self.parser.line),
+                    TokenType::GREATER_EQ => self.emit_byte(OpCode::EQ_GREATER_FLOAT, self.parser.line),
+                    TokenType::LESS => self.emit_byte(OpCode::LESS_FLOAT, self.parser.line),
+                    TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_FLOAT, self.parser.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -327,8 +328,8 @@ impl Compiler {
             },
             TokenType::BOOL => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_BOOL, self.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_BOOL, self.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_BOOL, self.parser.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_BOOL, self.parser.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -337,8 +338,8 @@ impl Compiler {
             },
             TokenType::STRING => {
                 match logic_token.token_type {
-                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_STRING, self.line),
-                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_STRING, self.line),
+                    TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_STRING, self.parser.line),
+                    TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_STRING, self.parser.line),
                     _ => {
                         errors::error_unexpected(logic_token, "logic operator function");
                         std::process::exit(1);
@@ -346,7 +347,7 @@ impl Compiler {
                 };
             }
             _ => {
-                errors::error_unexpected_token_type(constants_type, self.line, "logic operator function");
+                errors::error_unexpected_token_type(constants_type, self.parser.line, "logic operator function");
                 std::process::exit(1);
             }
         };
@@ -359,20 +360,20 @@ impl Compiler {
                     Keywords::TRUE => {
                         let pos = self.get_cur_chunk().push_value(Value::Bool(true));
 
-                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.line);
+                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.parser.line);
                     },
                     Keywords::FALSE => {
                         let pos = self.get_cur_chunk().push_value(Value::Bool(false));
 
-                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.line);
+                        self.emit_byte(OpCode::CONSTANT_BOOL(pos), self.parser.line);
                     },
                     Keywords::NULL => {
                         let pos = self.get_cur_chunk().push_value(Value::Null);
 
-                        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+                        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
                     },
                     _ => {
-                        errors::error_unexpected_keyword(val, self.line, "bool function");
+                        errors::error_unexpected_keyword(val, self.parser.line, "bool function");
                         std::process::exit(1);
                     }
                 }
@@ -397,7 +398,7 @@ impl Compiler {
 
                 let pos = self.get_cur_chunk().push_value(Value::Int(value));
 
-                self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
+                self.emit_byte(OpCode::CONSTANT_INT(pos), self.parser.line);
             }
             TokenType::FLOAT => {
                 let value: f64 = match self.parser.prev.value.iter().collect::<String>().parse() {
@@ -410,7 +411,7 @@ impl Compiler {
 
                 let pos = self.get_cur_chunk().push_value(Value::Float(value));
 
-                self.emit_byte(OpCode::CONSTANT_FLOAT(pos), self.line);
+                self.emit_byte(OpCode::CONSTANT_FLOAT(pos), self.parser.line);
             }
             _ => {
                 errors::error_unexpected(self.parser.prev.clone(), "number function");
@@ -439,11 +440,11 @@ impl Compiler {
         match constants_type {
             TokenType::INT => {
                 match arithmetic_token.token_type {
-                    TokenType::PLUS => self.emit_byte(OpCode::ADD_INT, self.line),
-                    TokenType::MINUS => self.emit_byte(OpCode::SUB_INT, self.line),
-                    TokenType::STAR => self.emit_byte(OpCode::MUL_INT, self.line),
-                    TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, self.line),
-                    TokenType::MOD => self.emit_byte(OpCode::MOD_INT, self.line),
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_INT, self.parser.line),
+                    TokenType::MINUS => self.emit_byte(OpCode::SUB_INT, self.parser.line),
+                    TokenType::STAR => self.emit_byte(OpCode::MUL_INT, self.parser.line),
+                    TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, self.parser.line),
+                    TokenType::MOD => self.emit_byte(OpCode::MOD_INT, self.parser.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -452,11 +453,11 @@ impl Compiler {
             },
             TokenType::FLOAT => {
                 match arithmetic_token.token_type {
-                    TokenType::PLUS => self.emit_byte(OpCode::ADD_FLOAT, self.line),
-                    TokenType::MINUS => self.emit_byte(OpCode::SUB_FLOAT, self.line),
-                    TokenType::STAR => self.emit_byte(OpCode::MUL_FLOAT, self.line),
-                    TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, self.line),
-                    TokenType::MOD => self.emit_byte(OpCode::MOD_FLOAT, self.line),
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_FLOAT, self.parser.line),
+                    TokenType::MINUS => self.emit_byte(OpCode::SUB_FLOAT, self.parser.line),
+                    TokenType::STAR => self.emit_byte(OpCode::MUL_FLOAT, self.parser.line),
+                    TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, self.parser.line),
+                    TokenType::MOD => self.emit_byte(OpCode::MOD_FLOAT, self.parser.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -465,7 +466,7 @@ impl Compiler {
             },
             TokenType::STRING => {
                 match arithmetic_token.token_type {
-                    TokenType::PLUS => self.emit_byte(OpCode::ADD_STRING, self.line),
+                    TokenType::PLUS => self.emit_byte(OpCode::ADD_STRING, self.parser.line),
                     _ => {
                         errors::error_unexpected(arithmetic_token, "arithmetic function");
                         std::process::exit(1);
@@ -473,7 +474,7 @@ impl Compiler {
                 };
             },
             _ => {
-                errors::error_unexpected_token_type(constants_type, self.line, "arithmetic function");
+                errors::error_unexpected_token_type(constants_type, self.parser.line, "arithmetic function");
                 std::process::exit(1);
             }
         };
@@ -485,7 +486,7 @@ impl Compiler {
                 b_type,
                 op.value.iter().collect::<String>(),
                 a_token_type,
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
@@ -527,9 +528,9 @@ impl Compiler {
         let value = self.parser.prev.value.iter().collect::<String>();
         instance_obj.fields_values.push(Value::String(value.clone()));
 
-        self.emit_byte(OpCode::STRING_DEC(instance_obj), self.line);
+        self.emit_byte(OpCode::STRING_DEC(instance_obj), self.parser.line);
 
-        self.emit_byte(OpCode::GET_STRING_RF(len), self.line);
+        self.emit_byte(OpCode::GET_STRING_RF(len), self.parser.line);
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
 
@@ -541,12 +542,11 @@ impl Compiler {
             let len = self.get_cur_instances().len() - 1;
             self.get_cur_instances()[len].name = value;
 
+            self.emit_byte(OpCode::POP, self.parser.line);
+
             self.instance_call();
 
-            self.get_cur_instances().pop();
-
-            self.emit_byte(OpCode::RF_POP(len), self.line);
-            self.emit_byte(OpCode::RF_REMOVE, self.line);
+            self.get_cur_instances()[len].name = String::new();
         }
     }
 
@@ -576,7 +576,30 @@ impl Compiler {
         self.parser.consume(TokenType::EQ);
 
         self.expression();
-        
+
+        let pos = self.get_cur_instances()
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, local)| local.name == var_name)
+            .map(|(index, _)| index as i32)
+            .unwrap_or(-1);
+
+        if pos != -1 && self.get_cur_instances()[pos as usize].is_string {
+            self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, 0), self.parser.line);
+
+            if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                    TokenType::STRING,
+                    self.get_cur_chunk().get_last_value().convert(),
+                    self.parser.line,
+                ));
+                std::process::exit(1);
+            }
+
+            return;
+        }
+
         let pos = self.get_local_pos(var_name);
 
         let value_type = self.get_cur_chunk().get_last_value().convert();
@@ -585,12 +608,12 @@ impl Compiler {
             errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                 var_type,
                 value_type,
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
 
-        self.emit_byte(OpCode::VAR_SET(pos as usize), self.line);
+        self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
     }
 
     pub fn var_call(&mut self) {
@@ -599,6 +622,7 @@ impl Compiler {
         let pos = self.get_cur_instances()
             .iter()
             .enumerate()
+            .rev()
             .find(|(_, local)| local.name == var_name)
             .map(|(index, _)| index as i32)
             .unwrap_or(-1);
@@ -611,14 +635,14 @@ impl Compiler {
                     let heap_pos = self.get_cur_instances()[pos].rf_index;
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
                     if instance_is_string {
-                        self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.line);
+                        self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.parser.line);
                         if heap_pos == 0 {
-                            self.emit_byte(OpCode::POP, self.line)
+                            self.emit_byte(OpCode::POP, self.parser.line)
                         }
                     }else {
-                        self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
+                        self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
                     }
-                    self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
+                    self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
 
                     return
                 },
@@ -642,12 +666,12 @@ impl Compiler {
                 self.get_cur_chunk().push_value(Value::String(String::new()));
             },
             local_type => {
-                errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.line));
+                errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.parser.line));
                 std::process::exit(1);
             }
         };
 
-        self.emit_byte(OpCode::VAR_CALL(pos as usize), self.line);
+        self.emit_byte(OpCode::VAR_CALL(pos as usize), self.parser.line);
     }
 
     pub fn var_declare(&mut self) {
@@ -655,12 +679,12 @@ impl Compiler {
 
         let var_name = self.parser.prev.value.iter().collect::<String>();
         if self.get_cur_locals().iter().any(| local | local.name == var_name ) {
-            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.line));
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.parser.line));
             std::process::exit(1);
         }
 
         if self.get_cur_instances().iter().any(| local | local.name == var_name ) {
-            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.line));
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.parser.line));
             std::process::exit(1);
         }
 
@@ -672,7 +696,7 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::STRING) |
             TokenType::IDENTIFIER => {},
             _ => {
-                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
+                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.parser.line));
                 std::process::exit(1);
             },
         };
@@ -685,7 +709,7 @@ impl Compiler {
             }
             TokenType::KEYWORD(keyword) => keyword.convert(),
             _ => {
-                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.line));
+                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.parser.line));
                 std::process::exit(1);
             },
         };
@@ -708,13 +732,13 @@ impl Compiler {
                 errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring var, expected: {:?} found: {:?} {}:",
                     var_type,
                     value_type,
-                    self.line,
+                    self.parser.line,
                 ));
                 std::process::exit(1);
             }
         }else {
             let pos = self.get_cur_chunk().push_value(Value::Null);
-            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
         }
 
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
@@ -737,7 +761,7 @@ impl Compiler {
             _ => {
                 errors::error_message("COMPILING ERROR", format!("Cannot find root struct for instance \"{}\" {}:",
                     name,
-                    self.line,
+                    self.parser.line,
                 ));
                 std::process::exit(1);
             },
@@ -752,7 +776,7 @@ impl Compiler {
                     errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
                         field_name,
                         root_struct_name,
-                        self.line,
+                        self.parser.line,
                     ));
                     std::process::exit(1);
                 },
@@ -760,7 +784,7 @@ impl Compiler {
             
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
-                    self.emit_byte(OpCode::METHOD_CALL(mth.clone()), self.line);
+                    self.emit_byte(OpCode::METHOD_CALL(mth.clone()), self.parser.line);
                 },
                 _ => {},
             }
@@ -779,7 +803,7 @@ impl Compiler {
             errors::error_message("COMPILING ERROR", format!("Field: \"{}\" is not declared in struct \"{}\" {}:",
                 field_name,
                 root_struct_name,
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
@@ -798,12 +822,12 @@ impl Compiler {
                 format!("Expected to find {:?} but found: {:?} {}:", 
                     self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type, 
                     value_type,
-                    self.line
+                    self.parser.line
                 ));
                 std::process::exit(1);
             }
 
-            self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
+            self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, field_index as usize), self.parser.line);
         }else{
             match self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type {
                 TokenType::INT => {
@@ -824,14 +848,14 @@ impl Compiler {
                 _ => {},
             }
 
-            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, field_index as usize), self.line);
+            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, field_index as usize), self.parser.line);
         }
     }
 
     pub fn instance_declare(&mut self, pos: usize, name: String) {
         if self.parser.cur.token_type != TokenType::EQ {
             errors::error_message("COMPILING ERROR", format!("Struct cannot be left undeclared {}:",
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
@@ -840,11 +864,29 @@ impl Compiler {
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
             if self.parser.cur.token_type == TokenType::STRING {
                 let pos = self.get_cur_instances().len();
+                
                 self.compile_line();
+                
+                if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
+                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                        TokenType::STRING,
+                        self.get_cur_chunk().get_last_value().convert(),
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
+                }
+
                 self.get_cur_instances()[pos].name = name;
                 return
             }
             
+            if self.parser.cur.token_type != TokenType::IDENTIFIER {
+                errors::error_message("COMPILING ERROR", format!("Expected to find instance {}:",
+                    self.parser.line,
+                ));
+                std::process::exit(1);
+            }
+
             let value = self.parser.cur.value.iter().collect::<String>();
             let pos = self.get_instance_local_pos(value);
 
@@ -870,7 +912,7 @@ impl Compiler {
                 format!("Expected to find {:?} but found: {:?} {}:", 
                     self.structs.get(&root_struct_name).unwrap().locals[field_counts].local_type, 
                     value_type,
-                    self.line
+                    self.parser.line
                 ));
                 std::process::exit(1);
             }
@@ -886,13 +928,13 @@ impl Compiler {
 
         if field_counts != self.parser.symbols[pos].arg_count {
             errors::error_message("COMPILER ERROR",
-            format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.line));
+            format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.parser.line));
             std::process::exit(1);
         }
         let len = self.parser.symbols.len();
         instance_obj.set_index(len);
 
-        self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.line);
+        self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.parser.line);
 
         self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: false });
 
@@ -905,7 +947,7 @@ impl Compiler {
         let name = self.parser.prev.value.iter().collect::<String>();
 
         if self.scope_depth != 0 {
-            errors::error_message("COMPILE ERROR", format!("Struct \"{}\" declaration inside bounds {}:", name, self.line));
+            errors::error_message("COMPILE ERROR", format!("Struct \"{}\" declaration inside bounds {}:", name, self.parser.line));
             std::process::exit(1)
         }
 
@@ -924,7 +966,7 @@ impl Compiler {
             let field_type = match self.parser.cur.token_type {
                 TokenType::KEYWORD(keyword) => keyword.convert(),
                 _ => {
-                    errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.line));
+                    errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
                     std::process::exit(1);
                 },
             };
@@ -951,7 +993,7 @@ impl Compiler {
         let pos = self.get_struct_symbol_pos(name.clone());
         self.parser.symbols[pos].arg_count = locals_len;
 
-        self.emit_byte(OpCode::STRUCT_DEC(self.structs.get(&name).unwrap().clone()), self.line);
+        self.emit_byte(OpCode::STRUCT_DEC(self.structs.get(&name).unwrap().clone()), self.parser.line);
         
         self.scope_depth -= 1;
     }
@@ -960,14 +1002,14 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_PAREN);
         if is_self {
             let pos = self.get_instance_local_pos(instance_name);
-            println!("{:?}", self.get_cur_instances()[pos]);
+
             let heap_pos = self.get_cur_instances()[pos].rf_index;
-            self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.line);
+            self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
             if heap_pos == 0 {
-                self.emit_byte(OpCode::POP, self.line)
+                self.emit_byte(OpCode::POP, self.parser.line)
             }
 
-            self.emit_byte(OpCode::INC_RC(pos as usize), self.line);
+            self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
         }
 
         let mut arg_count = 0;
@@ -984,7 +1026,7 @@ impl Compiler {
 
         if arg_count != mth_arg_count {
             errors::error_message("COMPILER ERROR",
-            format!("Expected to find {} arguments but found: {} {}:", mth_arg_count, arg_count, self.line));
+            format!("Expected to find {} arguments but found: {} {}:", mth_arg_count, arg_count, self.parser.line));
             std::process::exit(1);
         }
 
@@ -1005,7 +1047,7 @@ impl Compiler {
                 self.get_cur_chunk().push_value(Value::String(String::new()));
             }
             output_type => {
-                errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
+                errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
                 std::process::exit(1);
             }
         };
@@ -1018,7 +1060,7 @@ impl Compiler {
             let name = self.parser.cur.value.iter().collect::<String>();
 
             if self.structs.get(&struct_name).unwrap().methods.contains_key(&name) {
-                errors::error_message("COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_name, self.line));
+                errors::error_message("COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_name, self.parser.line));
                 std::process::exit(1);
             }
 
@@ -1041,7 +1083,7 @@ impl Compiler {
 
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined as function in this scope {}:", fn_name, self.line));
+            format!("Symbol: \"{}\" is not defined as function in this scope {}:", fn_name, self.parser.line));
             std::process::exit(1);
         }
 
@@ -1058,7 +1100,7 @@ impl Compiler {
 
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined as struct in this scope {}:", struct_name, self.line));
+            format!("Symbol: \"{}\" is not defined as struct in this scope {}:", struct_name, self.parser.line));
             std::process::exit(1);
         }
 
@@ -1075,7 +1117,7 @@ impl Compiler {
 
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
-            format!("Symbol: \"{}\" is not defined as var in this scope {}:", name, self.line));
+            format!("Symbol: \"{}\" is not defined as var in this scope {}:", name, self.parser.line));
             std::process::exit(1);
         }
 
@@ -1086,6 +1128,7 @@ impl Compiler {
         let pos = self.get_cur_instances()
             .iter()
             .enumerate()
+            .rev()
             .find(|(_, local)| {
                 local.name == instance_name &&
                 matches!(local.local_type, TokenType::KEYWORD(Keywords::INSTANCE(_)))
@@ -1095,7 +1138,7 @@ impl Compiler {
 
         if pos == -1 {
             errors::error_message("COMPILER ERROR",
-            format!("Local: \"{}\" is not defined as instance in this scope {}:", instance_name, self.line));
+            format!("Local: \"{}\" is not defined as instance in this scope {}:", instance_name, self.parser.line));
             std::process::exit(1);
         }
 
@@ -1123,20 +1166,20 @@ impl Compiler {
         self.symbol_to_hold = symbol_to_hold_enclosing;
 
         if self.parser.symbols[self.symbol_to_hold].name == "print" || self.parser.symbols[self.symbol_to_hold].name == "println" {
-            self.emit_byte(OpCode::PRINT_FN_CALL(self.symbol_to_hold, arg_count), self.line);
+            self.emit_byte(OpCode::PRINT_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
             return
         }
 
         if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
             errors::error_message("COMPILER ERROR",
-            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.line));
+            format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.parser.line));
             std::process::exit(1);
         }
 
         if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
-            self.emit_byte(OpCode::NATIVE_FN_CALL(self.symbol_to_hold), self.line);
+            self.emit_byte(OpCode::NATIVE_FN_CALL(self.symbol_to_hold), self.parser.line);
         }else{
-            self.emit_byte(OpCode::FUNCTION_CALL(self.symbol_to_hold), self.line);
+            self.emit_byte(OpCode::FUNCTION_CALL(self.symbol_to_hold), self.parser.line);
             match self.parser.symbols[self.symbol_to_hold].output_type {
                 TokenType::INT => {
                     self.get_cur_chunk().push_value(Value::Int(0));
@@ -1154,7 +1197,7 @@ impl Compiler {
                     self.get_cur_chunk().push_value(Value::String(String::new()));
                 },
                 output_type => {
-                    errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.line));
+                    errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
                     std::process::exit(1);
                 }
             };
@@ -1165,7 +1208,7 @@ impl Compiler {
         let name = self.parser.cur.value.iter().collect::<String>();
 
         if (self.scope_depth != 0 && !is_mth) || (self.scope_depth == 0 && is_mth) {
-            errors::error_message("COMPILE ERROR", format!("Function/Method \"{}\" declaration inside bounds {}:", name, self.line));
+            errors::error_message("COMPILE ERROR", format!("Function/Method \"{}\" declaration inside bounds {}:", name, self.parser.line));
             std::process::exit(1)
         }
         let mut function = Function::new(name.clone());
@@ -1182,7 +1225,7 @@ impl Compiler {
 
             if arg_name == "self" && is_mth {
                 if function.arg_count != 1 {
-                    errors::error_message("COMPILE ERROR", format!("\"self\" keyword need to be first in argument list {}:", self.line));
+                    errors::error_message("COMPILE ERROR", format!("\"self\" keyword need to be first in argument list {}:", self.parser.line));
                     std::process::exit(1)
                 }
 
@@ -1208,7 +1251,7 @@ impl Compiler {
                 }
                 TokenType::KEYWORD(keyword) => keyword.convert(),
                 _ => {
-                    errors::error_message("COMPILER ERROR", format!("Expected arg type after \":\" {}:", self.line));
+                    errors::error_message("COMPILER ERROR", format!("Expected arg type after \":\" {}:", self.parser.line));
                     std::process::exit(1);
                 }
             };
@@ -1259,20 +1302,20 @@ impl Compiler {
         self.block();
 
         let pos = self.get_cur_chunk().push_value(Value::Null);
-        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.line);
+        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
 
-        self.emit_byte(OpCode::RETURN, self.line);
+        self.emit_byte(OpCode::RETURN, self.parser.line);
 
         for index in 0..self.get_cur_instances().len() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
                 },
                 _ => {},
             }
         }
 
-        self.emit_byte(OpCode::END_OF_FN, self.line);
+        self.emit_byte(OpCode::END_OF_FN, self.parser.line);
 
         if is_mth {
             let fun = self.cur_function.clone();
@@ -1288,7 +1331,7 @@ impl Compiler {
 
         self.cur_function = enclosing;
 
-        self.emit_byte(op_code, self.line);
+        self.emit_byte(op_code, self.parser.line);
 
         self.scope_depth -= 1;
 
@@ -1316,7 +1359,7 @@ impl Compiler {
                 errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
                     self.cur_function.output_type,
                     var_type,
-                    self.line,
+                    self.parser.line,
                 ));
                 std::process::exit(1);
             }
@@ -1326,20 +1369,20 @@ impl Compiler {
                 errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
                     self.cur_function.output_type,
                     value_type,
-                    self.line,
+                    self.parser.line,
                 ));
                 std::process::exit(1);
             }
         }
 
-        self.emit_byte(OpCode::RETURN, self.line);
+        self.emit_byte(OpCode::RETURN, self.parser.line);
     }
 
     pub fn if_stmt(&mut self) {
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
             errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
@@ -1351,15 +1394,15 @@ impl Compiler {
         self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
             errors::error_message("COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
                 self.parser.symbols[self.symbol_to_hold].output_type,
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
 
         let index_jump_to_stmt = self.get_cur_chunk().code.len();
-        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.parser.line);
 
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
 
         self.parser.consume(TokenType::LEFT_BRACE);
 
@@ -1369,35 +1412,35 @@ impl Compiler {
         self.block();
 
         for _ in 0..self.get_cur_locals().len() - local_counter {
-            self.emit_byte(OpCode::POP, self.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
             self.get_cur_locals().pop();
         }
 
         for index in 0..self.get_cur_instances().len() - instance_counter {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
                     self.get_cur_instances().pop();
                 },
                 _ => {},
             }
         }
-        self.emit_byte(OpCode::RF_REMOVE, self.line);
+        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let index_exit_if = self.get_cur_chunk().code.len();
-        self.emit_byte(OpCode::JUMP(0), self.line);
+        self.emit_byte(OpCode::JUMP(0), self.parser.line);
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_jump_to_stmt) - 1;
-        self.get_cur_chunk().code[index_jump_to_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+        self.get_cur_chunk().code[index_jump_to_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.parser.line };
 
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
 
         if self.parser.cur.token_type == TokenType::KEYWORD(Keywords::ELIF) || self.parser.cur.token_type == TokenType::KEYWORD(Keywords::ELSE) {
             self.compile_line();
         }
 
         let offset_exit_if = (self.get_cur_chunk().code.len() - index_exit_if) - 1;
-        self.get_cur_chunk().code[index_exit_if] = Instruction { op: OpCode::JUMP(offset_exit_if), line: self.line };
+        self.get_cur_chunk().code[index_exit_if] = Instruction { op: OpCode::JUMP(offset_exit_if), line: self.parser.line };
     }
 
     pub fn else_stmt(&mut self) {
@@ -1411,7 +1454,7 @@ impl Compiler {
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
             errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
@@ -1423,14 +1466,14 @@ impl Compiler {
         self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
             errors::error_message("COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
                 self.parser.symbols[self.symbol_to_hold].output_type,
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         };
 
         let index_exit_stmt = self.get_cur_chunk().code.len();
-        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.parser.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
 
         self.parser.consume(TokenType::LEFT_BRACE);
 
@@ -1450,28 +1493,28 @@ impl Compiler {
         self.scope_depth -= 1;
 
         for _ in 0..self.get_cur_locals().len() - local_counter {
-            self.emit_byte(OpCode::POP, self.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
             self.get_cur_locals().pop();
         }
 
         for index in 0..self.get_cur_instances().len() - self.loop_info.instance_start {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
                     self.get_cur_instances().pop();
                 },
                 _ => {},
             }
         }
-        self.emit_byte(OpCode::RF_REMOVE, self.line);
+        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
-        self.emit_byte(OpCode::LOOP(offset_loop), self.line);
+        self.emit_byte(OpCode::LOOP(offset_loop), self.parser.line);
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_exit_stmt) - 1;
-        self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+        self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.parser.line };
 
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
     }
 
     pub fn for_stmt(&mut self) {
@@ -1501,7 +1544,7 @@ impl Compiler {
             match self.get_cur_chunk().get_last_instruction().op {
                 OpCode::FUNCTION_CALL(_) => {
                     errors::error_message("COMPILING ERROR", format!("Functions cannot be used as STEP BY argument {}:",
-                        self.line,
+                        self.parser.line,
                     ));
                     std::process::exit(1);
                 },
@@ -1509,7 +1552,7 @@ impl Compiler {
             }
         }else {
             let pos = self.get_cur_chunk().push_value(Value::Int(1));
-            self.emit_byte(OpCode::CONSTANT_INT(pos), self.line);
+            self.emit_byte(OpCode::CONSTANT_INT(pos), self.parser.line);
         }
 
         self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
@@ -1521,15 +1564,15 @@ impl Compiler {
         // check if condition is still true
         let len_locals = self.get_cur_locals().len();
 
-        self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.line);
-        self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.line);
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.parser.line);
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.parser.line);
 
-        self.emit_byte(OpCode::EQ_LESS_INT, self.line);
+        self.emit_byte(OpCode::EQ_LESS_INT, self.parser.line);
         //
 
         let index_exit_stmt = self.get_cur_chunk().code.len();
-        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.parser.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
 
         self.parser.consume(TokenType::LEFT_BRACE);
 
@@ -1548,88 +1591,88 @@ impl Compiler {
         self.scope_depth -= 1;
 
         // adding
-        self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.line);
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.parser.line);
 
-        self.emit_byte(OpCode::VAR_CALL(len_locals - 1), self.line);
+        self.emit_byte(OpCode::VAR_CALL(len_locals - 1), self.parser.line);
 
-        self.emit_byte(OpCode::ADD_INT, self.line);
+        self.emit_byte(OpCode::ADD_INT, self.parser.line);
 
-        self.emit_byte(OpCode::VAR_SET(len_locals - 3), self.line);
+        self.emit_byte(OpCode::VAR_SET(len_locals - 3), self.parser.line);
         //
 
         for _ in 0..self.get_cur_locals().len() - local_counter + 1 {
-            self.emit_byte(OpCode::POP, self.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
             self.get_cur_locals().pop();
         }
 
         for index in 0..self.get_cur_instances().len() - self.loop_info.instance_start {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.line);
+                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
                     self.get_cur_instances().pop();
                 },
                 _ => {},
             }
         }
-        self.emit_byte(OpCode::RF_REMOVE, self.line);
+        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
-        self.emit_byte(OpCode::LOOP(offset_loop), self.line);
+        self.emit_byte(OpCode::LOOP(offset_loop), self.parser.line);
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_exit_stmt) - 1;
-        self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.line };
+        self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.parser.line };
 
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
 
         for _ in 0..2 {
-            self.emit_byte(OpCode::POP, self.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
             self.get_cur_locals().pop();
         }
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
     }
 
     pub fn and_op(&mut self) {
         let index = self.get_cur_chunk().code.len();
-        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.parser.line);
 
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
             errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         };
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
         self.parse(Precedence::AND);
 
         let offset = (self.get_cur_chunk().code.len() - index) - 1;
-        self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.line };
+        self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.parser.line };
     }
 
     pub fn or_op(&mut self) {
         let index = self.get_cur_chunk().code.len();
 
-        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.line);
+        self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.parser.line);
 
         let index_or = self.get_cur_chunk().code.len();
-        self.emit_byte(OpCode::JUMP(0), self.line);
+        self.emit_byte(OpCode::JUMP(0), self.parser.line);
 
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
             errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         };
         let offset = (self.get_cur_chunk().code.len() - index) - 1;
-        self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.line };
+        self.get_cur_chunk().code[index] = Instruction { op: OpCode::IF_STMT_OFFSET(offset), line: self.parser.line };
 
-        self.emit_byte(OpCode::POP, self.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
 
         self.parse(Precedence::OR);
 
         let offset = (self.get_cur_chunk().code.len() - index_or) - 1;
-        self.get_cur_chunk().code[index_or] = Instruction { op: OpCode::JUMP(offset), line: self.line };
+        self.get_cur_chunk().code[index_or] = Instruction { op: OpCode::JUMP(offset), line: self.parser.line };
     }
 
     fn compile_line(&mut self) {
@@ -1652,7 +1695,7 @@ impl Compiler {
             },
             TokenType::KEYWORD(Keywords::ELIF) => {
                 if self.parser.prev.token_type != TokenType::RIGHT_BRACE {
-                    error_message("COMPILER ERROR", format!("Expected to find }} before ELIF statment {}:", self.line));
+                    error_message("COMPILER ERROR", format!("Expected to find }} before ELIF statment {}:", self.parser.line));
                     std::process::exit(1);
                 }
                 self.parser.advance();
@@ -1660,7 +1703,7 @@ impl Compiler {
             },
             TokenType::KEYWORD(Keywords::ELSE) => {
                 if self.parser.prev.token_type != TokenType::RIGHT_BRACE {
-                    error_message("COMPILER ERROR", format!("Expected to find }} before ELSE statment {}:", self.line));
+                    error_message("COMPILER ERROR", format!("Expected to find }} before ELSE statment {}:", self.parser.line));
                     std::process::exit(1);
                 }
                 self.parser.advance();
@@ -1679,40 +1722,40 @@ impl Compiler {
 
                 if self.scope_depth <= 1 {
                     errors::error_message("COMPILING ERROR", format!("BREAK statment used out of loop {}:",
-                        self.line,
+                        self.parser.line,
                     ));
                     std::process::exit(1);
                 };
 
-                self.emit_byte(OpCode::BREAK, self.line);
+                self.emit_byte(OpCode::BREAK, self.parser.line);
 
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
-                self.emit_byte(OpCode::LOOP(offset), self.line);
+                self.emit_byte(OpCode::LOOP(offset), self.parser.line);
             },
             TokenType::KEYWORD(Keywords::CONTINUE) => {
                 self.parser.advance();
 
                 if self.scope_depth <= 1 {
                     errors::error_message("COMPILING ERROR", format!("CONTINUE statment used out of loop {}:",
-                        self.line,
+                        self.parser.line,
                     ));
                     std::process::exit(1);
                 };
 
-                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 3), self.line);
+                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 3), self.parser.line);
 
-                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 1), self.line);
+                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 1), self.parser.line);
         
-                self.emit_byte(OpCode::ADD_INT, self.line);
+                self.emit_byte(OpCode::ADD_INT, self.parser.line);
         
-                self.emit_byte(OpCode::VAR_SET(self.loop_info.locals_start - 3), self.line);
+                self.emit_byte(OpCode::VAR_SET(self.loop_info.locals_start - 3), self.parser.line);
 
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
-                self.emit_byte(OpCode::LOOP(offset), self.line);
+                self.emit_byte(OpCode::LOOP(offset), self.parser.line);
             },
             _ => {
                 self.expression();
-                self.emit_byte(OpCode::POP, self.line);
+                self.emit_byte(OpCode::POP, self.parser.line);
             },
         }
     }
@@ -1728,7 +1771,7 @@ impl Compiler {
         
         self.parser.advance();
         loop {
-            self.line = self.parser.cur.line;
+            self.parser.line = self.parser.cur.line;
             if self.parser.check_if_eof() {
                 break;
             }
@@ -1748,7 +1791,7 @@ impl Compiler {
             errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
                 self.parser.prev.token_type,
                 self.parser.prev.value.iter().collect::<String>(),
-                self.line,
+                self.parser.line,
             ));
             std::process::exit(1);
         }
@@ -1757,7 +1800,7 @@ impl Compiler {
         match rule.prefix {
             Some(f) => f(self),
             _ => {
-                errors::error_message("PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.line));
+                errors::error_message("PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.parser.line));
                 std::process::exit(1);
             },
         };
@@ -1769,7 +1812,7 @@ impl Compiler {
                 errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
                     self.parser.prev.token_type,
                     self.parser.prev.value.iter().collect::<String>(),
-                    self.line,
+                    self.parser.line,
                 ));
                 std::process::exit(1);
             }
@@ -1777,7 +1820,7 @@ impl Compiler {
             match rule.infix {
                 Some(f) => f(self),
                 _ => {
-                    errors::error_message("PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.line));
+                    errors::error_message("PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.parser.line));
                     std::process::exit(1);
                 },
             }
@@ -1786,7 +1829,7 @@ impl Compiler {
 
     pub fn emit_byte(&mut self, op: OpCode, line: u32) {
         if self.scope_depth == 0 {
-            errors::error_message("PARSER ERROR", format!("Expression found outside of bounds {}:",self.line));
+            errors::error_message("PARSER ERROR", format!("Expression found outside of bounds {}:",self.parser.line));
             std::process::exit(1)
         }
         self.get_cur_chunk().push(Instruction{ op: op, line: line });
