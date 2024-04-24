@@ -32,9 +32,11 @@ pub struct StringMethods {
 impl StringMethods {
     pub fn get_methods(&mut self) -> HashMap<String, Function> {
         HashMap::from([
-            ("len".to_string(), self.pack_into_fn("len".to_string(), TokenType::INT)),
-            ("toLower".to_string(), self.pack_into_fn("toLower".to_string(), TokenType::STRING)),
-            ("toUpper".to_string(), self.pack_into_fn("toUpper".to_string(), TokenType::STRING)),
+            ("len".to_string(), self.pack_into_fn("len".to_string(), TokenType::INT, 1)),
+            ("toLower".to_string(), self.pack_into_fn("toLower".to_string(), TokenType::STRING, 1)),
+            ("toUpper".to_string(), self.pack_into_fn("toUpper".to_string(), TokenType::STRING, 1)),
+            ("get".to_string(), self.pack_into_fn("get".to_string(), TokenType::STRING, 2)),
+            ("count".to_string(), self.pack_into_fn("count".to_string(), TokenType::STRING, 2)),
         ])
     }
 
@@ -43,10 +45,12 @@ impl StringMethods {
             NativeFn { name: "len".to_string(), function: StringMethods::len, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "toLower".to_string(), function: StringMethods::to_lower, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "toUpper".to_string(), function: StringMethods::to_upper, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "get".to_string(), function: StringMethods::get, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { name: "count".to_string(), function: StringMethods::count, arg_count: 2, rc_counter: 1, index: 0 },
         ]
     }
 
-    pub fn pack_into_fn(&mut self, name: String, out_type: TokenType) -> Function {
+    pub fn pack_into_fn(&mut self, name: String, out_type: TokenType, arg_count: usize) -> Function {
         self.cur_pos += 1;
 
         let mut function = Function::new(name);
@@ -56,9 +60,12 @@ impl StringMethods {
 
         function.output_type = out_type;
         function.is_self_arg = true;
+        function.arg_count = arg_count - 1;
 
         function.instances.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
+        function.instances.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: true });
 
+        function.chunk.push(Instruction { op: OpCode::GET_STRING_RF(0), line: 1});
         function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
         function.chunk.push(Instruction { op: OpCode::NATIVE_FN_CALL(self.cur_pos), line: 1});
 
@@ -84,5 +91,17 @@ impl StringMethods {
 
     fn to_lower(args: Vec<Value>) -> Value {
         Value::String(args[0].get_string().to_ascii_lowercase())
+    }
+
+    fn get(args: Vec<Value>) -> Value {
+        Value::String(String::from_utf8(vec![args[1].get_string().as_bytes()[args[0].get_int() as usize]]).unwrap())
+    }
+
+    fn count(args: Vec<Value>) -> Value {
+        let str = args[1].get_string();
+        println!("{:?}", args);
+        let vec_indices = str.match_indices(&args[0].get_string()).collect::<Vec<_>>();
+
+        Value::Int(vec_indices.len() as i64)
     }
 }

@@ -221,6 +221,7 @@ impl VM {
 
                 let mut stack: Vec<Value> = vec![];
                 let len = self.frames[self.ip].stack.len() - 1;
+                println!("las {:?}", self.frames[self.ip].stack);
                 for i in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {
