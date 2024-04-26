@@ -211,7 +211,8 @@ impl VM {
                     stack.push(value);
                 }
                 stack.reverse();
-                
+                println!("{:?} {:?}", self.rc.heap.len(), instance_rf_count);
+                println!("s: {:?}", stack);
                 self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
                 
                 self.ip += 1;
