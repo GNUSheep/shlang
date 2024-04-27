@@ -139,11 +139,13 @@ impl VM {
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
+
                 match instance_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let pos = self.rc.find_object(index);
 
                         let fields = self.rc.get_object(pos).get_values();
+                        println!("{:?}", fields);
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
                         return
                     },
@@ -173,7 +175,8 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::InstanceRef(pos));
             },
             OpCode::GET_STRING_RF(pos) => {
-                // need to find if other method with using it, would be better
+                // need to find if other method with using it, would be better\
+                println!("{:?}", self.rc.heap.len() - 2);
                 self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::StringRef(pos));
             },
@@ -203,16 +206,17 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;
 
+                println!("{:?}", self.frames[self.ip].stack);
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack.pop().unwrap();
                     if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
                         instance_rf_count += 1;
                     }
+
                     stack.push(value);
                 }
                 stack.reverse();
-                println!("{:?} {:?}", self.rc.heap.len(), instance_rf_count);
-                println!("s: {:?}", stack);
+
                 self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
                 
                 self.ip += 1;

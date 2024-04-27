@@ -1,8 +1,9 @@
 use crate::frontend::tokens::{Token, TokenType, Keywords};
+use colored::Colorize;
 
 pub fn error_message(title: &str, msg: String) {
-    println!("==== {} ====", title);
-    println!("{}", msg);
+    eprintln!("==== {} ====", title);
+    eprintln!("{}", msg);
 }
 
 pub fn conversion_error(from: &str, to: &str) {

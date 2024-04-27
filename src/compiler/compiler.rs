@@ -534,7 +534,7 @@ impl Compiler {
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
 
-        self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: true });
+        self.get_cur_instances().push(Local{ name: value.clone(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: true });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
 
