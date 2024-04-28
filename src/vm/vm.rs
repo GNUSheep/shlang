@@ -145,7 +145,7 @@ impl VM {
                         let pos = self.rc.find_object(index);
 
                         let fields = self.rc.get_object(pos).get_values();
-                        println!("{:?}", fields);
+
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
                         return
                     },
@@ -176,7 +176,6 @@ impl VM {
             },
             OpCode::GET_STRING_RF(pos) => {
                 // need to find if other method with using it, would be better\
-                println!("{:?}", self.rc.heap.len() - 2);
                 self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::StringRef(pos));
             },
@@ -226,7 +225,7 @@ impl VM {
 
                 let mut stack: Vec<Value> = vec![];
                 let len = self.frames[self.ip].stack.len() - 1;
-                println!("las {:?}", self.frames[self.ip].stack);
+
                 for i in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {
@@ -302,6 +301,9 @@ impl VM {
             },
             OpCode::INC_RC(pos) => {
                 self.rc.inc_counter(self.frames[self.ip].offset+pos);
+            },
+            OpCode::PUSH_STACK(val) => {
+                self.frames[self.ip].stack.push(val);
             },
             OpCode::RF_REMOVE => {
                 self.rc.remove();

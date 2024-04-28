@@ -529,8 +529,7 @@ impl Compiler {
         instance_obj.fields_values.push(Value::String(value.clone()));
 
         self.emit_byte(OpCode::STRING_DEC(instance_obj), self.parser.line);
-
-        self.emit_byte(OpCode::GET_STRING_RF(len), self.parser.line);
+        self.emit_byte(OpCode::PUSH_STACK(Value::StringRef(len)), self.parser.line);
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
 
@@ -867,6 +866,8 @@ impl Compiler {
                 
                 self.compile_line();
                 
+                self.emit_byte(OpCode::POP, self.parser.line);
+
                 if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
                     errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                         TokenType::STRING,

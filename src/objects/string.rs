@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, vec};
 
 use crate::{
     frontend::tokens::{Keywords, TokenType}, 
@@ -32,11 +32,11 @@ pub struct StringMethods {
 impl StringMethods {
     pub fn get_methods(&mut self) -> HashMap<String, Function> {
         HashMap::from([
-            ("len".to_string(), self.pack_into_fn("len".to_string(), TokenType::INT, 1)),
-            ("toLower".to_string(), self.pack_into_fn("toLower".to_string(), TokenType::STRING, 1)),
-            ("toUpper".to_string(), self.pack_into_fn("toUpper".to_string(), TokenType::STRING, 1)),
-            ("get".to_string(), self.pack_into_fn("get".to_string(), TokenType::STRING, 2)),
-            ("count".to_string(), self.pack_into_fn("count".to_string(), TokenType::STRING, 2)),
+            ("len".to_string(), self.pack_into_fn("len".to_string(), TokenType::INT, 1, TokenType::NULL)),
+            ("toLower".to_string(), self.pack_into_fn("toLower".to_string(), TokenType::STRING, 1, TokenType::NULL)),
+            ("toUpper".to_string(), self.pack_into_fn("toUpper".to_string(), TokenType::STRING, 1, TokenType::NULL)),
+            ("get".to_string(), self.pack_into_fn("get".to_string(), TokenType::STRING, 2, TokenType::INT)),
+            ("count".to_string(), self.pack_into_fn("count".to_string(), TokenType::STRING, 2, TokenType::STRING)),
         ])
     }
 
@@ -50,7 +50,7 @@ impl StringMethods {
         ]
     }
 
-    pub fn pack_into_fn(&mut self, name: String, out_type: TokenType, arg_count: usize) -> Function {
+    pub fn pack_into_fn(&mut self, name: String, out_type: TokenType, arg_count: usize, arg_type: TokenType) -> Function {
         self.cur_pos += 1;
 
         let mut function = Function::new(name);
@@ -63,9 +63,14 @@ impl StringMethods {
         function.arg_count = arg_count - 1;
 
         function.instances.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
-        function.instances.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: true });
+        
+        if arg_type == TokenType::STRING {
+            for i in 1..arg_count {
+                function.instances.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: true });
+                function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(i, 0), line: 1});
+            }
+        }
 
-        function.chunk.push(Instruction { op: OpCode::GET_STRING_RF(0), line: 1});
         function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
         function.chunk.push(Instruction { op: OpCode::NATIVE_FN_CALL(self.cur_pos), line: 1});
 
@@ -99,7 +104,7 @@ impl StringMethods {
 
     fn count(args: Vec<Value>) -> Value {
         let str = args[1].get_string();
-        println!("{:?}", args);
+
         let vec_indices = str.match_indices(&args[0].get_string()).collect::<Vec<_>>();
 
         Value::Int(vec_indices.len() as i64)
