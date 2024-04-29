@@ -636,7 +636,8 @@ impl Compiler {
                     if instance_is_string {
                         self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.parser.line);
                         if heap_pos == 0 {
-                            self.emit_byte(OpCode::POP, self.parser.line)
+                            self.emit_byte(OpCode::POP, self.parser.line);
+                            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
                         }
                     }else {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);

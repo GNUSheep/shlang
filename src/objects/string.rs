@@ -1,4 +1,5 @@
 use std::{collections::HashMap, vec};
+use regex::Regex;
 
 use crate::{
     frontend::tokens::{Keywords, TokenType}, 
@@ -36,7 +37,10 @@ impl StringMethods {
             ("toLower".to_string(), self.pack_into_fn("toLower".to_string(), TokenType::STRING, 1, TokenType::NULL)),
             ("toUpper".to_string(), self.pack_into_fn("toUpper".to_string(), TokenType::STRING, 1, TokenType::NULL)),
             ("get".to_string(), self.pack_into_fn("get".to_string(), TokenType::STRING, 2, TokenType::INT)),
-            ("count".to_string(), self.pack_into_fn("count".to_string(), TokenType::STRING, 2, TokenType::STRING)),
+            ("count".to_string(), self.pack_into_fn("count".to_string(), TokenType::INT, 2, TokenType::STRING)),
+            ("find".to_string(), self.pack_into_fn("find".to_string(), TokenType::INT, 2, TokenType::STRING)),
+            ("isChar".to_string(), self.pack_into_fn("isChar".to_string(), TokenType::BOOL, 1, TokenType::NULL)),
+            ("isDigit".to_string(), self.pack_into_fn("isDigit".to_string(), TokenType::BOOL, 1, TokenType::NULL)),
         ])
     }
 
@@ -47,6 +51,9 @@ impl StringMethods {
             NativeFn { name: "toUpper".to_string(), function: StringMethods::to_upper, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "get".to_string(), function: StringMethods::get, arg_count: 2, rc_counter: 1, index: 0 },
             NativeFn { name: "count".to_string(), function: StringMethods::count, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { name: "find".to_string(), function: StringMethods::find, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { name: "isChar".to_string(), function: StringMethods::is_char, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "isDigit".to_string(), function: StringMethods::is_digit, arg_count: 1, rc_counter: 1, index: 0 },
         ]
     }
 
@@ -108,5 +115,26 @@ impl StringMethods {
         let vec_indices = str.match_indices(&args[0].get_string()).collect::<Vec<_>>();
 
         Value::Int(vec_indices.len() as i64)
+    }
+
+    fn find(args: Vec<Value>) -> Value {
+        let str = args[1].get_string();
+
+        match str.find(&args[0].get_string()) {
+            Some(val) => Value::Int(val as i64),
+            None => Value::Int(-1),
+        }
+    }
+
+    fn is_char(args: Vec<Value>) -> Value {
+        let pattern = Regex::new(r"^[^0-9]*$").unwrap();
+
+        Value::Bool(pattern.is_match(&args[0].get_string()))
+    }
+
+    fn is_digit(args: Vec<Value>) -> Value {
+        let pattern = Regex::new(r"^[^a-zA-Z]*$").unwrap();
+
+        Value::Bool(pattern.is_match(&args[0].get_string()))
     }
 }
