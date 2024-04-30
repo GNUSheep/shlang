@@ -1008,7 +1008,7 @@ impl Compiler {
             let heap_pos = self.get_cur_instances()[pos].rf_index;
             self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
             if heap_pos == 0 {
-                self.emit_byte(OpCode::POP, self.parser.line)
+                self.emit_byte(OpCode::POP, self.parser.line);
             }
 
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);

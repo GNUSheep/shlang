@@ -137,4 +137,8 @@ impl StringMethods {
 
         Value::Bool(pattern.is_match(&args[0].get_string()))
     }
+
+    fn trim(args: Vec<Value>) -> Value {
+        Value::String(args[0].get_string().trim().to_string())
+    }
 }
