@@ -41,6 +41,10 @@ impl StringMethods {
             ("find".to_string(), self.pack_into_fn("find".to_string(), TokenType::INT, 2, TokenType::STRING)),
             ("isChar".to_string(), self.pack_into_fn("isChar".to_string(), TokenType::BOOL, 1, TokenType::NULL)),
             ("isDigit".to_string(), self.pack_into_fn("isDigit".to_string(), TokenType::BOOL, 1, TokenType::NULL)),
+            ("trim".to_string(), self.pack_into_fn("trim".to_string(), TokenType::STRING, 1, TokenType::NULL)),
+            ("trimLeft".to_string(), self.pack_into_fn("trimLeft".to_string(), TokenType::STRING, 1, TokenType::NULL)),
+            ("trimRight".to_string(), self.pack_into_fn("trimRight".to_string(), TokenType::STRING, 1, TokenType::NULL)),
+            ("replace".to_string(), self.pack_into_fn("replace".to_string(), TokenType::STRING, 3, TokenType::STRING)),
         ])
     }
 
@@ -54,6 +58,10 @@ impl StringMethods {
             NativeFn { name: "find".to_string(), function: StringMethods::find, arg_count: 2, rc_counter: 1, index: 0 },
             NativeFn { name: "isChar".to_string(), function: StringMethods::is_char, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "isDigit".to_string(), function: StringMethods::is_digit, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "trim".to_string(), function: StringMethods::trim, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "trimLeft".to_string(), function: StringMethods::trim_left, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "trimRight".to_string(), function: StringMethods::trim_right, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "replace".to_string(), function: StringMethods::replace, arg_count: 3, rc_counter: 1, index: 0 },
         ]
     }
 
@@ -140,5 +148,17 @@ impl StringMethods {
 
     fn trim(args: Vec<Value>) -> Value {
         Value::String(args[0].get_string().trim().to_string())
+    }
+
+    fn trim_left(args: Vec<Value>) -> Value {
+        Value::String(args[0].get_string().trim_start().to_string())
+    }
+
+    fn trim_right(args: Vec<Value>) -> Value {
+        Value::String(args[0].get_string().trim_end().to_string())
+    }
+
+    fn replace(args: Vec<Value>) -> Value {
+        Value::String(args[2].get_string().replace(&args[0].get_string(), &args[1].get_string()))
     }
 }

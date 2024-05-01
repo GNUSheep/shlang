@@ -151,6 +151,10 @@ impl Parser {
         }
     }
 
+    pub fn peek_prev(&self) -> Token {
+        self.tokens[self.index - 3].clone()
+    }
+
     pub fn check_if_eof(&mut self) -> bool {
         if self.cur.token_type == TokenType::EOF {
             return true;
@@ -518,6 +522,10 @@ impl Compiler {
     }
  
     pub fn string_dec(&mut self) {
+        let is_assign = if self.parser.peek_prev().token_type == TokenType::EQ {
+            true
+        }else { false };
+
         let pos = self.get_struct_symbol_pos("String".to_string());
 
         let mut instance_obj = StructInstance::new(pos);
@@ -544,6 +552,11 @@ impl Compiler {
             self.emit_byte(OpCode::POP, self.parser.line);
 
             self.instance_call();
+
+            if is_assign {
+                self.emit_byte(OpCode::SET_INSTANCE_FIELD(len, 0), self.parser.line);
+            }
+
 
             self.get_cur_instances()[len].name = String::new();
         }
@@ -866,7 +879,7 @@ impl Compiler {
                 let pos = self.get_cur_instances().len();
                 
                 self.compile_line();
-                
+
                 self.emit_byte(OpCode::POP, self.parser.line);
 
                 if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {

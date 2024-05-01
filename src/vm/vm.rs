@@ -205,7 +205,6 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;
 
-                println!("{:?}", self.frames[self.ip].stack);
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack.pop().unwrap();
                     if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
@@ -293,6 +292,7 @@ impl VM {
             }
 
             OpCode::POP => {
+                //println!("{:?}", self.frames[self.ip].stack);
                 self.frames[self.ip].stack.pop();
             },
 
