@@ -143,7 +143,6 @@ impl VM {
                         let pos = self.rc.find_object(index);
                         
                         let fields = self.rc.get_object(pos).get_values();
-                        println!("{:?}", fields);
 
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
                         return
@@ -168,8 +167,8 @@ impl VM {
 
                 self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
             },
-            OpCode::GET_SELF_RF => {
-                let mut offset = self.frames[self.ip].offset;
+            OpCode::GET_INSTANCE_W_OFFSET_RF(index) => {
+                let mut offset = self.frames[self.ip].offset + index;
                 while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
                     match self.rc.get_object(offset).get_values()[0] {
                         Value::InstanceRef(pos) => {
@@ -304,7 +303,6 @@ impl VM {
             }
 
             OpCode::POP => {
-                //println!("{:?}", self.frames[self.ip].stack);
                 self.frames[self.ip].stack.pop();
             },
 

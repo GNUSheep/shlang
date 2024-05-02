@@ -1022,7 +1022,7 @@ impl Compiler {
             self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
             if heap_pos == 0 {
                 self.emit_byte(OpCode::POP, self.parser.line);
-                self.emit_byte(OpCode::GET_SELF_RF, self.parser.line);
+                self.emit_byte(OpCode::GET_INSTANCE_W_OFFSET_RF(pos), self.parser.line);
             }
 
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);

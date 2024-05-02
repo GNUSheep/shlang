@@ -15,7 +15,7 @@ pub enum OpCode {
     GET_INSTANCE_FIELD(usize, usize),
     SET_INSTANCE_FIELD(usize, usize),
     GET_INSTANCE_RF(usize),
-    GET_SELF_RF,
+    GET_INSTANCE_W_OFFSET_RF(usize),
     GET_STRING_RF(usize),
     METHOD_CALL(functions::Function),
 
