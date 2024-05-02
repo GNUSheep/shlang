@@ -783,7 +783,7 @@ impl Compiler {
         if self.parser.cur.token_type == TokenType::LEFT_PAREN {
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
-                    self.mth_call(mth.output_type, mth.arg_count, name, mth.is_self_arg);
+                    self.mth_call(mth.output_type, mth.arg_count, name.clone(), mth.is_self_arg);
                 },
                 None => {
                     errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
@@ -1022,6 +1022,7 @@ impl Compiler {
             self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
             if heap_pos == 0 {
                 self.emit_byte(OpCode::POP, self.parser.line);
+                self.emit_byte(OpCode::GET_SELF_RF, self.parser.line);
             }
 
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);

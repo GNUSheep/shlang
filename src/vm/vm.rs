@@ -1,6 +1,5 @@
 use crate::{
-    objects::{rc::RefObject, string::StringMethods}, 
-    vm::{bytecode::{Chunk, Instruction, OpCode},
+    objects::{rc::RefObject, string::StringMethods}, vm::{bytecode::{Chunk, Instruction, OpCode},
     value::Value,
 }};
 
@@ -139,12 +138,12 @@ impl VM {
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
-
                 match instance_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let pos = self.rc.find_object(index);
-
+                        
                         let fields = self.rc.get_object(pos).get_values();
+                        println!("{:?}", fields);
 
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
                         return
@@ -168,6 +167,19 @@ impl VM {
                 };
 
                 self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
+            },
+            OpCode::GET_SELF_RF => {
+                let mut offset = self.frames[self.ip].offset;
+                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
+                    match self.rc.get_object(offset).get_values()[0] {
+                        Value::InstanceRef(pos) => {
+                            offset = pos;
+                        }
+                        _ => {},
+                    }
+                }
+                self.rc.push(Box::new(RefObject { ref_index: offset, rc_counter: 1, index: 0}));
+                self.frames[self.ip].stack.push(Value::InstanceRef(offset));
             },
             OpCode::GET_INSTANCE_RF(pos) => {
                 // need to find if other method with using it, would be better
