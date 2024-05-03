@@ -1181,11 +1181,14 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_PAREN);
         self.symbol_to_hold = symbol_to_hold_enclosing;
 
-        if self.parser.symbols[self.symbol_to_hold].name == "print" || self.parser.symbols[self.symbol_to_hold].name == "println" {
-            self.emit_byte(OpCode::PRINT_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
+        if self.parser.symbols[self.symbol_to_hold].name == "print" || 
+           self.parser.symbols[self.symbol_to_hold].name == "println" || 
+           self.parser.symbols[self.symbol_to_hold].name == "input"
+        {
+            self.emit_byte(OpCode::IO_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
             return
         }
-
+        
         if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
             errors::error_message("COMPILER ERROR",
             format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.parser.line));

@@ -256,11 +256,13 @@ impl VM {
                     self.frames[self.ip].stack.push(output);
                 }
             },
-            OpCode::PRINT_FN_CALL(index, arg_count) => {
+            OpCode::IO_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
 
                 let mut stack: Vec<Value> = vec![];
-                let len = self.frames[self.ip].stack.len() - 1;
+                let len: usize = if self.frames[self.ip].stack.len() != 0 {
+                    self.frames[self.ip].stack.len() - 1
+                }else { 0 };
                 for i in 0..arg_count {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {

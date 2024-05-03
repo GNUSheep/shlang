@@ -72,16 +72,36 @@ impl Scanner {
         }
 
         self.next();
-        let token_value = self.source_code[self.start..self.cur]
-            .iter()
-            .collect::<String>()
-            .trim_matches('"')
-            .chars()
-            .collect();
+        
+        let mut token_value: String = String::new();
+        let mut esc_seq = false; 
+        for c in self.source_code[self.start..self.cur].to_vec() {
+            if c == '\\' {
+                esc_seq = true;
+                continue;
+            }
+
+            if esc_seq {
+                match c {
+                    'n' => token_value.push('\n'),
+                    'r' => token_value.push('\r'),
+                    't' => token_value.push('\t'),
+                    _ => {
+                        token_value.push('\\');
+                        token_value.push(c);
+                    }
+                }
+                esc_seq = false;
+
+                continue;
+            }
+
+            token_value.push(c);
+        };
 
         return Token {
             token_type: TokenType::STRING,
-            value: token_value,
+            value: token_value.trim_matches('"').chars().collect(),
             line: self.line,
         };
     }

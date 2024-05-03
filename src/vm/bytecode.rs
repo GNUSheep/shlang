@@ -8,7 +8,7 @@ pub enum OpCode {
     FUNCTION_CALL(usize),
 
     NATIVE_FN_CALL(usize),
-    PRINT_FN_CALL(usize, usize),
+    IO_FN_CALL(usize, usize),
 
     STRUCT_DEC(structs::Struct),
     INSTANCE_DEC(structs::StructInstance),
