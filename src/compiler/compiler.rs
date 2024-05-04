@@ -873,7 +873,6 @@ impl Compiler {
             std::process::exit(1);
         }
         self.parser.consume(TokenType::EQ);
-
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
             if self.parser.cur.token_type == TokenType::STRING {
                 let pos = self.get_cur_instances().len();
@@ -900,9 +899,26 @@ impl Compiler {
                     self.parser.line,
                 ));
                 std::process::exit(1);
+            }            
+            self.parser.consume(TokenType::IDENTIFIER);
+
+            let value = self.parser.prev.value.iter().collect::<String>();
+
+            let pos = self.parser.symbols
+                .iter()
+                .enumerate()
+                .find(|(_, name)| *name.name == value && name.symbol_type != TokenType::KEYWORD(Keywords::STRUCT))
+                .map(|(index, _)| index as i32)
+                .unwrap_or(-1);
+
+            if pos != -1 {
+                self.symbol_to_hold = pos as usize;
+                self.parser.consume(TokenType::LEFT_PAREN);
+                self.fn_call();
+
+                return
             }
 
-            let value = self.parser.cur.value.iter().collect::<String>();
             let pos = self.get_instance_local_pos(value);
 
             let local_type = self.get_cur_instances()[pos].local_type;
@@ -1781,7 +1797,7 @@ impl Compiler {
 
     pub fn compile(&mut self) -> Chunk {
         // more native types, (think about another way)
-        let string_type = StringObj::init(3);
+        let string_type = StringObj::init(4);
         self.parser.get_symbols(string_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });

@@ -33,6 +33,14 @@ pub fn print(args: Vec<Value>) -> Value {
         };
     }
 
+    match output.flush() {
+        Ok(_) => {},
+        Err(_) => {
+            errors::error_message("PRINTING ERROR", format!("Failed to flush stdout"));
+            std::process::exit(1);
+        },
+    }
+
     Value::Null
 }
 

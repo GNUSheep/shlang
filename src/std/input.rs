@@ -1,5 +1,4 @@
 use crate::{compiler::errors::error_message, vm::value::Value};
-use crate::compiler::errors;
 use std::io::{self, BufRead};
 
 use super::print::print;
@@ -14,5 +13,17 @@ pub fn input(args: Vec<Value>) -> Value {
         print(args);
     }
 
-    Value::Null
+    let stdin = io::stdin();
+    let mut input = stdin.lock();
+
+    let mut buffer = String::new();
+    match input.read_line(&mut buffer) {
+        Ok(_) => {},
+        Err(_) => {
+            error_message("INPUT ERROR", "Failed to get input".to_string());
+            std::process::exit(1);
+        },
+    }
+
+    Value::String(buffer)
 }

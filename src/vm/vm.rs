@@ -263,6 +263,7 @@ impl VM {
                 let len: usize = if self.frames[self.ip].stack.len() != 0 {
                     self.frames[self.ip].stack.len() - 1
                 }else { 0 };
+
                 for i in 0..arg_count {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {

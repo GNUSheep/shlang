@@ -102,7 +102,7 @@ impl NativeFn {
         vec![
             Symbol { name: "print".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
             Symbol { name: "println".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
-            Symbol { name: "input".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
+            Symbol { name: "input".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::STRING, arg_count: 1 },
             Symbol { name: "test_returning".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 0 },
         ]
     }
