@@ -9,7 +9,7 @@ pub enum OpCode {
 
     NATIVE_FN_CALL(usize),
     IO_FN_CALL(usize, usize),
-
+    
     STRUCT_DEC(structs::Struct),
     INSTANCE_DEC(structs::StructInstance),
     GET_INSTANCE_FIELD(usize, usize),
@@ -35,6 +35,7 @@ pub enum OpCode {
     RF_REMOVE,
 
     STRING_DEC(structs::StructInstance),
+    STRING_DEC_VALUE(structs::StructInstance),
     ADD_STRING,
     EQ_STRING,
     NEG_EQ_STRING,

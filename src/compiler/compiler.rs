@@ -916,6 +916,19 @@ impl Compiler {
                 self.parser.consume(TokenType::LEFT_PAREN);
                 self.fn_call();
 
+                if value == "input" {
+                    let pos = self.get_struct_symbol_pos("String".to_string());
+                    let mut instance_obj = StructInstance::new(pos);
+
+                    let len = self.parser.symbols.len();
+                    instance_obj.set_index(len);
+
+                    self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: true });
+                    self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+
+                    self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
+                }
+                
                 return
             }
 
@@ -1204,7 +1217,7 @@ impl Compiler {
             self.emit_byte(OpCode::IO_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
             return
         }
-        
+
         if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
             errors::error_message("COMPILER ERROR",
             format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.parser.line));
@@ -1532,7 +1545,7 @@ impl Compiler {
             self.get_cur_locals().pop();
         }
 
-        for index in 0..self.get_cur_instances().len() - self.loop_info.instance_start {
+        for index in (0..self.get_cur_instances().len() - self.loop_info.instance_start).rev() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
@@ -1635,12 +1648,12 @@ impl Compiler {
         self.emit_byte(OpCode::VAR_SET(len_locals - 3), self.parser.line);
         //
 
-        for _ in 0..self.get_cur_locals().len() - local_counter + 1 {
+        for _ in (0..self.get_cur_locals().len() - local_counter + 1).rev() {
             self.emit_byte(OpCode::POP, self.parser.line);
             self.get_cur_locals().pop();
         }
 
-        for index in 0..self.get_cur_instances().len() - self.loop_info.instance_start {
+        for index in (0..self.get_cur_instances().len() - self.loop_info.instance_start).rev() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     self.emit_byte(OpCode::DEC_RC(index), self.parser.line);

@@ -126,6 +126,10 @@ impl VM {
             OpCode::STRING_DEC(instance) => {
                 self.rc.push(Box::new(instance));
             },
+            OpCode::STRING_DEC_VALUE(mut instance) => {
+                instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap());
+                self.rc.push(Box::new(instance));
+            },
 
             OpCode::INSTANCE_DEC(mut instance) => {
                 let field_count = self.rc.get_object(instance.root_struct_pos).get_arg_count();
@@ -271,7 +275,7 @@ impl VM {
                             let pos = self.rc.find_object(index);
 
                             let fields = self.rc.get_object(pos).get_values();
-
+                            println!("A: {:?}", fields);
                             stack.push(fields[0].clone());
                         },
                         _ => stack.push(value),
@@ -281,6 +285,7 @@ impl VM {
 
                 let output = native_fn(stack);
                 if output != Value::Null {
+                    self.frames[self.ip].stack.pop();
                     self.frames[self.ip].stack.push(output);
                 }
             },

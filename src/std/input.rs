@@ -18,7 +18,9 @@ pub fn input(args: Vec<Value>) -> Value {
 
     let mut buffer = String::new();
     match input.read_line(&mut buffer) {
-        Ok(_) => {},
+        Ok(_) => {
+            buffer = buffer.trim_end_matches('\n').to_string();
+        },
         Err(_) => {
             error_message("INPUT ERROR", "Failed to get input".to_string());
             std::process::exit(1);
