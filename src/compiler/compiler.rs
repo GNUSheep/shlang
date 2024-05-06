@@ -655,7 +655,8 @@ impl Compiler {
                     }else {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
                     }
-                    self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+
+                    //self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
 
                     return
                 },

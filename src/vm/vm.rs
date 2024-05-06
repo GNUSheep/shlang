@@ -275,7 +275,6 @@ impl VM {
                             let pos = self.rc.find_object(index);
 
                             let fields = self.rc.get_object(pos).get_values();
-                            println!("A: {:?}", fields);
                             stack.push(fields[0].clone());
                         },
                         _ => stack.push(value),
