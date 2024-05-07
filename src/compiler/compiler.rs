@@ -928,6 +928,7 @@ impl Compiler {
                     self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
 
                     self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
+                    self.get_cur_chunk().push_value(Value::String(String::new()));
                 }
                 
                 return
@@ -1216,6 +1217,11 @@ impl Compiler {
            self.parser.symbols[self.symbol_to_hold].name == "input"
         {
             self.emit_byte(OpCode::IO_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
+
+            if self.parser.symbols[self.symbol_to_hold].name == "input" {
+                self.get_cur_chunk().push_value(Value::String("".to_string()));
+            }
+
             return
         }
 

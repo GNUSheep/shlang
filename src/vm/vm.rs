@@ -81,7 +81,7 @@ impl VM {
         self.frames[self.ip].offset = self.rc.heap.len();
         loop {
             let instruction = self.get_instruction().clone();
-
+            //println!("{:?}", self.frames[self.ip].stack);
             match instruction.op {
                 OpCode::RETURN => {
                     if self.ip == 0 {
@@ -224,9 +224,9 @@ impl VM {
                     let value = self.frames[self.ip].stack.pop().unwrap();
                     if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
                         instance_rf_count += 1;
+                    } else {
+                        stack.push(value);
                     }
-
-                    stack.push(value);
                 }
                 stack.reverse();
 
@@ -281,7 +281,7 @@ impl VM {
                     }
                 }
                 stack.reverse();
-
+                println!("{:?} {:?}", arg_count, stack);
                 let output = native_fn(stack);
                 if output != Value::Null {
                     self.frames[self.ip].stack.pop();
@@ -314,10 +314,32 @@ impl VM {
             },
 
             OpCode::DEC_RC(pos) => {
-                self.rc.dec_counter(self.frames[self.ip].offset+pos);
+                let mut offset = self.frames[self.ip].offset+pos;
+                //println!("DEC: {:?}", self.rc.get_object(offset).get_rc_counter());
+                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
+                    match self.rc.get_object(offset).get_values()[0] {
+                        Value::InstanceRef(pos) => {
+                            offset = pos;
+                        }
+                        _ => {},
+                    }
+                }
+
+                self.rc.dec_counter(offset);
+
             },
             OpCode::INC_RC(pos) => {
-                self.rc.inc_counter(self.frames[self.ip].offset+pos);
+                let mut offset = self.frames[self.ip].offset+pos;
+                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
+                    match self.rc.get_object(offset).get_values()[0] {
+                        Value::InstanceRef(pos) => {
+                            offset = pos;
+                        }
+                        _ => {},
+                    }
+                }
+
+                self.rc.inc_counter(offset);
             },
             OpCode::PUSH_STACK(val) => {
                 self.frames[self.ip].stack.push(val);
@@ -327,6 +349,7 @@ impl VM {
             },
 
             OpCode::VAR_CALL(index) => {
+                println!("{:?}", self.frames[self.ip].stack);
                 let value = self.frames[self.ip].stack[index].clone();
                 self.frames[self.ip].stack.push(value);
             },
@@ -527,7 +550,7 @@ impl VM {
                     },
                     _ => Value::Null,
                 };
-    
+
                 self.frames[self.ip].stack.push(Value::Bool(a.get_string()==b.get_string()));
             },
             OpCode::NEG_EQ_STRING => {
