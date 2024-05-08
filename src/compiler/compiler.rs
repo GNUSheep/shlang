@@ -645,6 +645,7 @@ impl Compiler {
                     let pos = self.get_instance_local_pos(var_name);
 
                     let heap_pos = self.get_cur_instances()[pos].rf_index;
+    
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
                     if instance_is_string {
                         self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.parser.line);

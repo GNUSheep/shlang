@@ -81,7 +81,6 @@ impl VM {
         self.frames[self.ip].offset = self.rc.heap.len();
         loop {
             let instruction = self.get_instruction().clone();
-            //println!("{:?}", self.frames[self.ip].stack);
             match instruction.op {
                 OpCode::RETURN => {
                     if self.ip == 0 {
@@ -190,7 +189,7 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::InstanceRef(pos));
             },
             OpCode::GET_STRING_RF(pos) => {
-                // need to find if other method with using it, would be better\
+                // need to find if other method with using it, would be better
                 self.rc.push(Box::new(RefObject { ref_index: pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::StringRef(pos));
             },
@@ -281,7 +280,7 @@ impl VM {
                     }
                 }
                 stack.reverse();
-                println!("{:?} {:?}", arg_count, stack);
+
                 let output = native_fn(stack);
                 if output != Value::Null {
                     self.frames[self.ip].stack.pop();
@@ -315,10 +314,12 @@ impl VM {
 
             OpCode::DEC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;
-                //println!("DEC: {:?}", self.rc.get_object(offset).get_rc_counter());
-                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
+                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
+                    matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
+                {
                     match self.rc.get_object(offset).get_values()[0] {
-                        Value::InstanceRef(pos) => {
+                        Value::InstanceRef(pos) | Value::StringRef(pos) => {
+                            self.rc.dec_counter(offset);
                             offset = pos;
                         }
                         _ => {},
@@ -330,9 +331,11 @@ impl VM {
             },
             OpCode::INC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;
-                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
+                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
+                    matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
+                {
                     match self.rc.get_object(offset).get_values()[0] {
-                        Value::InstanceRef(pos) => {
+                        Value::InstanceRef(pos) | Value::StringRef(pos) => {
                             offset = pos;
                         }
                         _ => {},
@@ -349,7 +352,6 @@ impl VM {
             },
 
             OpCode::VAR_CALL(index) => {
-                println!("{:?}", self.frames[self.ip].stack);
                 let value = self.frames[self.ip].stack[index].clone();
                 self.frames[self.ip].stack.push(value);
             },
