@@ -256,6 +256,7 @@ impl VM {
 
                 let output = native_fn(stack);
                 if output != Value::Null {
+                    self.frames[self.ip].stack.pop();
                     self.frames[self.ip].stack.push(output);
                 }
             },

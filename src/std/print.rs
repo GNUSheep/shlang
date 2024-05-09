@@ -43,7 +43,3 @@ pub fn print(args: Vec<Value>) -> Value {
 
     Value::Null
 }
-
-pub fn test_returning(_args: Vec<Value>) -> Value {
-    Value::Int(5)
-}

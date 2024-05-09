@@ -103,7 +103,8 @@ impl NativeFn {
             Symbol { name: "print".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
             Symbol { name: "println".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
             Symbol { name: "input".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::STRING, arg_count: 1 },
-            Symbol { name: "test_returning".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 0 },
+            Symbol { name: "convINT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 1 },
+            Symbol { name: "convSTR".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::STRING, arg_count: 1 },
         ]
     }
 
@@ -112,7 +113,8 @@ impl NativeFn {
             NativeFn { name: "print".to_string(), function: std::print::print, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "println".to_string(), function: std::print::println, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "input".to_string(), function: std::input::input, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "test_returning".to_string(), function: std::print::test_returning, arg_count: 0, rc_counter: 1, index: 0 },
+            NativeFn { name: "convINT".to_string(), function: std::conv::conv_to_int, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "convSTR".to_string(), function: std::conv::conv_to_string, arg_count: 1, rc_counter: 1, index: 0 },
         ]
     }
 }

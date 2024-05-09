@@ -236,6 +236,7 @@ pub struct Compiler {
     symbol_to_hold: usize,
     loop_info: LoopInfo,
     structs: HashMap<String, Struct>,
+    changing_fn: bool,
 }
 
 impl Compiler {
@@ -256,6 +257,7 @@ impl Compiler {
             symbol_to_hold: 0,
             loop_info: LoopInfo::new(),
             structs: HashMap::new(),
+            changing_fn: false,
         }
     }
 
@@ -648,6 +650,11 @@ impl Compiler {
     
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
                     if instance_is_string {
+                        if heap_pos != 0 && !self.changing_fn {
+                            self.emit_byte(OpCode::PUSH_STACK(Value::StringRef(heap_pos)), self.parser.line);
+
+                            return
+                        }
                         self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.parser.line);
                         if heap_pos == 0 {
                             self.emit_byte(OpCode::POP, self.parser.line);
@@ -657,7 +664,7 @@ impl Compiler {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
                     }
 
-                    //self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+                    self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
 
                     return
                 },
@@ -1061,6 +1068,7 @@ impl Compiler {
         }
 
         let mut arg_count = 0;
+        self.changing_fn = true;
         while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
             arg_count += 1;
             
@@ -1071,6 +1079,7 @@ impl Compiler {
             }
         }
         self.parser.consume(TokenType::RIGHT_PAREN);
+        self.changing_fn = false;
 
         if arg_count != mth_arg_count {
             errors::error_message("COMPILER ERROR",
@@ -1199,7 +1208,12 @@ impl Compiler {
 
     pub fn fn_call(&mut self) {
         let mut arg_count: usize = 0;
+        self.changing_fn = true;
         
+        if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
+            self.changing_fn = false;
+        }
+
         let symbol_to_hold_enclosing = self.symbol_to_hold;
         while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
             arg_count += 1;
@@ -1213,6 +1227,7 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_PAREN);
         self.symbol_to_hold = symbol_to_hold_enclosing;
 
+        self.changing_fn = false;
         if self.parser.symbols[self.symbol_to_hold].name == "print" || 
            self.parser.symbols[self.symbol_to_hold].name == "println" || 
            self.parser.symbols[self.symbol_to_hold].name == "input"
@@ -1234,6 +1249,14 @@ impl Compiler {
 
         if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
             self.emit_byte(OpCode::NATIVE_FN_CALL(self.symbol_to_hold), self.parser.line);
+
+            if self.parser.symbols[self.symbol_to_hold].name == "convINT" {
+                self.get_cur_chunk().push_value(Value::Int(0));
+            }
+
+            if self.parser.symbols[self.symbol_to_hold].name == "convSTR" {
+                self.get_cur_chunk().push_value(Value::String("".to_string()));
+            }
         }else{
             self.emit_byte(OpCode::FUNCTION_CALL(self.symbol_to_hold), self.parser.line);
             match self.parser.symbols[self.symbol_to_hold].output_type {
@@ -1818,7 +1841,7 @@ impl Compiler {
 
     pub fn compile(&mut self) -> Chunk {
         // more native types, (think about another way)
-        let string_type = StringObj::init(4);
+        let string_type = StringObj::init(5);
         self.parser.get_symbols(string_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });

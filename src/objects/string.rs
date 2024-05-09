@@ -140,7 +140,7 @@ impl StringMethods {
         Value::Bool(pattern.is_match(&args[0].get_string()))
     }
 
-    fn is_digit(args: Vec<Value>) -> Value {
+    pub fn is_digit(args: Vec<Value>) -> Value {
         let pattern = Regex::new(r"^[^a-zA-Z]*$").unwrap();
 
         Value::Bool(pattern.is_match(&args[0].get_string()))
