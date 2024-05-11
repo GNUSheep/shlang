@@ -96,12 +96,11 @@ impl VM {
                         if matches!(instr.op, OpCode::DEC_RC(_)) || matches!(instr.op, OpCode::POP) {
                             self.run_instruction(instr);
                         }
-
+                        
                         instr = self.get_instruction().clone();
                     }
-                    
                     self.frames.pop();
-
+                    
                     self.rc.remove();
 
                     self.ip -= 1;
@@ -144,7 +143,6 @@ impl VM {
                 match instance_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let pos = self.rc.find_object(index);
-                        
                         let fields = self.rc.get_object(pos).get_values();
 
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
@@ -273,7 +271,6 @@ impl VM {
                     match value {
                         Value::StringRef(index) => {
                             let pos = self.rc.find_object(index);
-
                             let fields = self.rc.get_object(pos).get_values();
                             stack.push(fields[0].clone());
                         },
@@ -320,15 +317,13 @@ impl VM {
                 {
                     match self.rc.get_object(offset).get_values()[0] {
                         Value::InstanceRef(pos) | Value::StringRef(pos) => {
-                            self.rc.dec_counter(offset);
+                            //self.rc.dec_counter(offset);
                             offset = pos;
                         }
                         _ => {},
                     }
                 }
-
                 self.rc.dec_counter(offset);
-
             },
             OpCode::INC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;
@@ -342,7 +337,6 @@ impl VM {
                         _ => {},
                     }
                 }
-
                 self.rc.inc_counter(offset);
             },
             OpCode::PUSH_STACK(val) => {

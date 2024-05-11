@@ -15,7 +15,7 @@ fn run(file_path: &String) {
     let mut compiler = compiler::compiler::Compiler::new(tokens);
 
     let main_chunk = compiler.compile();
-
+    //println!("{:?}", main_chunk);
     let mut vm = vm::vm::VM::new();
     let main_frame = vm.declare_all(main_chunk);
 
