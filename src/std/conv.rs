@@ -12,6 +12,10 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
                 error_message("RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
                 std::process::exit(1);
             }
+            
+            if val.is_empty() {
+                return Value::Int(0);
+            }
 
             return Value::Int(val.parse::<i64>().unwrap());
         }

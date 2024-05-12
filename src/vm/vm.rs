@@ -317,13 +317,18 @@ impl VM {
                 {
                     match self.rc.get_object(offset).get_values()[0] {
                         Value::InstanceRef(pos) | Value::StringRef(pos) => {
-                            //self.rc.dec_counter(offset);
+                            self.rc.dec_counter(offset);
                             offset = pos;
                         }
                         _ => {},
                     }
                 }
                 self.rc.dec_counter(offset);
+            },
+            OpCode::DEC_TO(index) => {
+                for i in (self.frames[self.ip].offset+index..self.rc.heap.len()).rev() {
+                    self.rc.dec_counter(i);
+                }
             },
             OpCode::INC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;

@@ -8,6 +8,7 @@ use crate::frontend::tokens::{Token, TokenType, Keywords};
 use super::errors::{self, error_message};
 
 pub struct LoopInfo {
+    pub loop_type: TokenType,
     pub start: usize,
     pub locals_start: usize,
     pub instance_start: usize,
@@ -16,6 +17,7 @@ pub struct LoopInfo {
 impl LoopInfo {
     pub fn new() -> Self {
         LoopInfo {
+            loop_type: TokenType::NULL,
             start: 0,
             locals_start: 0,
             instance_start: 0,
@@ -59,6 +61,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::KEYWORD(Keywords::WHILE), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::FOR), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::BREAK), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::KEYWORD(Keywords::CONTINUE), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::STRING, ParseRule { prefix: Some(Compiler::string_parse), infix: None, prec: Precedence::NONE }),
 
@@ -650,6 +653,7 @@ impl Compiler {
     
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
                     if instance_is_string {
+                        self.get_cur_chunk().push_value(Value::String(String::new()));
                         if heap_pos != 0 && !self.changing_fn {
                             self.emit_byte(OpCode::PUSH_STACK(Value::StringRef(heap_pos)), self.parser.line);
 
@@ -665,7 +669,10 @@ impl Compiler {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
                     }
 
-                    self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+                    if self.changing_fn {
+                        self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+                    }
+
 
                     return
                 },
@@ -1214,7 +1221,7 @@ impl Compiler {
         if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
             self.changing_fn = false;
         }
-
+        
         let symbol_to_hold_enclosing = self.symbol_to_hold;
         while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
             arg_count += 1;
@@ -1496,10 +1503,10 @@ impl Compiler {
             self.get_cur_locals().pop();
         }
 
-        for index in 0..self.get_cur_instances().len() - instance_counter {
+        for index in (0..self.get_cur_instances().len() - instance_counter).rev() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
+                    self.emit_byte(OpCode::DEC_TO(instance_counter), self.parser.line);
                     self.get_cur_instances().pop();
                 },
                 _ => {},
@@ -1519,7 +1526,7 @@ impl Compiler {
             self.compile_line();
         }
 
-        let offset_exit_if = (self.get_cur_chunk().code.len() - index_exit_if) - 1;
+        let offset_exit_if = (self.get_cur_chunk().code.len() - index_exit_if) - 1; 
         self.get_cur_chunk().code[index_exit_if] = Instruction { op: OpCode::JUMP(offset_exit_if), line: self.parser.line };
     }
 
@@ -1561,12 +1568,14 @@ impl Compiler {
         let instance_counter = self.get_cur_instances().len();
         self.scope_depth += 1;
 
+        self.loop_info.loop_type = TokenType::KEYWORD(Keywords::WHILE);
         self.loop_info.locals_start = local_counter;
         self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
 
         self.block();
 
+        self.loop_info.loop_type = TokenType::KEYWORD(Keywords::WHILE);
         self.loop_info.locals_start = local_counter;
         self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
@@ -1660,11 +1669,14 @@ impl Compiler {
         let instance_counter = self.get_cur_instances().len();
         self.scope_depth += 1;
 
+        self.loop_info.loop_type = TokenType::KEYWORD(Keywords::FOR);
         self.loop_info.locals_start = local_counter;
         self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
+
         self.block();
 
+        self.loop_info.loop_type = TokenType::KEYWORD(Keywords::FOR);
         self.loop_info.start = loop_start_index;
         self.loop_info.locals_start = local_counter;
         self.loop_info.instance_start = instance_counter;
@@ -1821,6 +1833,15 @@ impl Compiler {
                     ));
                     std::process::exit(1);
                 };
+
+                if self.loop_info.loop_type == TokenType::KEYWORD(Keywords::WHILE) {
+                    let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
+                    self.emit_byte(OpCode::DEC_TO(self.loop_info.instance_start), self.parser.line);
+                    self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
+                    self.emit_byte(OpCode::LOOP(offset), self.parser.line);
+
+                    return
+                }
 
                 self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 3), self.parser.line);
 

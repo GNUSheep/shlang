@@ -1,0 +1,38 @@
+fn print_menu() {
+    println("=== SHLANG CALCULATOR ===")
+    println("\t1.Add")
+    println("\t2.Sub")
+    println("\t3.Mul")
+    println("\t4.Div")
+    println("\t5.QUIT")
+}
+
+fn main() {
+    while true {
+        print_menu()
+        
+        var operation: String = input("Enter number to choose operation: ")
+        
+        if convINT(operation) > 5 or convINT(operation) < 1 {
+            println("Choose option from 1-5")
+            continue
+        }
+
+        if convINT(operation) == 5 {
+            break
+        }
+
+        var a: int = convINT(input("Enter first number: "))
+        var b: int = convINT(input("Enter second number: "))
+
+        if operation == "1" {
+            println(a+b)
+        }elif operation == "2" {
+            println(a-b)
+        }elif operation == "3" {
+            println(a*b)
+        }elif operation == "4" {
+            println(a/b)
+        }
+    }
+}
