@@ -1,5 +1,4 @@
 use crate::frontend::tokens::{Token, TokenType, Keywords};
-use colored::Colorize;
 
 pub fn error_message(title: &str, msg: String) {
     eprintln!("==== {} ====", title);
