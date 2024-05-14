@@ -540,6 +540,7 @@ impl VM {
 
                         fields[0].clone()
                     },
+                    Value::String(val) => Value::String(val),
                     _ => Value::Null,
                 };
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
@@ -550,6 +551,7 @@ impl VM {
 
                         fields[0].clone()
                     },
+                    Value::String(val) => Value::String(val),
                     _ => Value::Null,
                 };
 
