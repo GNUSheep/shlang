@@ -182,12 +182,20 @@ impl Parser {
         }
 
         let mut is_main_fn_found = false;
-        for token_pair in self.tokens.clone().windows(2) {
-            if token_pair[0].token_type == TokenType::KEYWORD(Keywords::FN) {
-                let fn_name = token_pair[1].value.iter().collect::<String>();
+
+        let mut iter = self.tokens.iter_mut();
+        'l: while let Some(token) = iter.next()  {
+            if token.token_type == TokenType::KEYWORD(Keywords::FN) {
+                let fn_name = match iter.next() {
+                    Some(val) => {
+                        if val.token_type == TokenType::EOF { break 'l };
+                        val.value.iter().collect::<String>()
+                    },
+                    None => break 'l,
+                };
 
                 if symbols.iter().any(| symbol | symbol.name == fn_name) {
-                    errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token_pair[1].line));
+                    errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token.line));
                     std::process::exit(1);
                 }
 
@@ -195,26 +203,47 @@ impl Parser {
                     is_main_fn_found = true;
                 }
 
-                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: TokenType::NULL, arg_count: 0 });
+                let mut arg_count = 0;
+                'args: while let Some(tok) = iter.next() {
+                    match tok.token_type {
+                        TokenType::IDENTIFIER => arg_count += 1,
+                        TokenType::RIGHT_PAREN | TokenType::EOF => break 'args,
+                        _ => {},
+                    }
+                }
+
+                let out_type = match iter.next() {
+                    Some(val) => {
+                        if val.token_type == TokenType::EOF { break 'l };
+
+                        match val.token_type {
+                            TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
+                            TokenType::KEYWORD(Keywords::FLOAT) => TokenType::FLOAT,
+                            TokenType::KEYWORD(Keywords::BOOL) => TokenType::BOOL,
+                            _ => TokenType::NULL,
+                        }                        
+                    },
+                    None => break 'l,
+                };
+
+                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count: arg_count });
             }
 
-            if token_pair[0].token_type == TokenType::KEYWORD(Keywords::STRUCT) {
-                let struct_name = token_pair[1].value.iter().collect::<String>();
+            if token.token_type == TokenType::KEYWORD(Keywords::STRUCT) {
+                let struct_name = match iter.next() {
+                    Some(val) => {
+                        if val.token_type == TokenType::EOF { break 'l };
+                        val.value.iter().collect::<String>()
+                    },
+                    None => break 'l,
+                };
 
                 if symbols.iter().any(| symbol | symbol.name == struct_name) {
-                    errors::error_message("COMPILER ERROR", format!("Struct: \"{}\" is already defined {}:", struct_name, token_pair[1].line));
+                    errors::error_message("COMPILER ERROR", format!("Struct: \"{}\" is already defined {}:", struct_name, token.line));
                     std::process::exit(1);
                 }
 
                 symbols.push(Symbol{name: struct_name, symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
-            }
-
-            let symbol_len = symbols.len();
-            match token_pair[0].token_type {
-                TokenType::KEYWORD(Keywords::INT) => symbols[symbol_len - 1].output_type = TokenType::INT,
-                TokenType::KEYWORD(Keywords::FLOAT) => symbols[symbol_len - 1].output_type = TokenType::FLOAT,
-                TokenType::KEYWORD(Keywords::BOOL) => symbols[symbol_len - 1].output_type = TokenType::BOOL,
-                _ => {},
             }
         }
 
@@ -659,6 +688,7 @@ impl Compiler {
 
                             return
                         }
+
                         self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.parser.line);
                         if heap_pos == 0 {
                             self.emit_byte(OpCode::POP, self.parser.line);
@@ -1863,7 +1893,7 @@ impl Compiler {
 
     pub fn compile(&mut self) -> Chunk {
         // more native types, (think about another way)
-        let string_type = StringObj::init(5);
+        let string_type = StringObj::init(6);
         self.parser.get_symbols(string_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });

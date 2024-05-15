@@ -104,6 +104,7 @@ impl NativeFn {
             Symbol { name: "println".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 },
             Symbol { name: "input".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::STRING, arg_count: 1 },
             Symbol { name: "convINT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 1 },
+            Symbol { name: "convFLOAT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 1 },
             Symbol { name: "convSTR".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::STRING, arg_count: 1 },
         ]
     }
@@ -114,6 +115,7 @@ impl NativeFn {
             NativeFn { name: "println".to_string(), function: std::print::println, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "input".to_string(), function: std::input::input, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "convINT".to_string(), function: std::conv::conv_to_int, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "convFLOAT".to_string(), function: std::conv::conv_to_float, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "convSTR".to_string(), function: std::conv::conv_to_string, arg_count: 1, rc_counter: 1, index: 0 },
         ]
     }

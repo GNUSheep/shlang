@@ -1,15 +1,11 @@
-fn print_menu() {
-    println("=== SHLANG CALCULATOR ===")
-    println("\t1.Add")
-    println("\t2.Sub")
-    println("\t3.Mul")
-    println("\t4.Div")
-    println("\t5.QUIT")
-}
-
 fn main() {
     while true {
-        print_menu()
+        println("=== SHLANG CALCULATOR ===")
+        println("\t1.Add")
+        println("\t2.Sub")
+        println("\t3.Mul")
+        println("\t4.Div")
+        println("\t5.QUIT")
         
         var operation: String = input("Enter number to choose operation: ")
         
