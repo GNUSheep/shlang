@@ -1292,6 +1292,11 @@ impl Compiler {
                 self.get_cur_chunk().push_value(Value::Int(0));
             }
 
+            if self.parser.symbols[self.symbol_to_hold].name == "convFLOAT" {
+                self.get_cur_chunk().push_value(Value::Float(0.0));
+            }
+
+
             if self.parser.symbols[self.symbol_to_hold].name == "convSTR" {
                 self.get_cur_chunk().push_value(Value::String("".to_string()));
             }
@@ -1893,7 +1898,7 @@ impl Compiler {
 
     pub fn compile(&mut self) -> Chunk {
         // more native types, (think about another way)
-        let string_type = StringObj::init(6);
+        let string_type = StringObj::init(8);
         self.parser.get_symbols(string_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });

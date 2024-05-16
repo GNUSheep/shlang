@@ -14,7 +14,7 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
             }
             
             if val.is_empty() {
-                return Value::Int(0);
+                return Value::Float(0.0);
             }
 
             return Value::Float(val.parse::<f64>().unwrap());
