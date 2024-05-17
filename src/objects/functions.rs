@@ -108,6 +108,8 @@ impl NativeFn {
             Symbol { name: "convSTR".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::STRING, arg_count: 1 },
             Symbol { name: "absINT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 1 },
             Symbol { name: "absFLOAT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 1 },
+            Symbol { name: "powINT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 2 },
+            Symbol { name: "powFLOAT".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 2 },
         ]
     }
 
@@ -121,6 +123,8 @@ impl NativeFn {
             NativeFn { name: "convSTR".to_string(), function: std::conv::conv_to_string, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "absINT".to_string(), function: std::math::abs_int, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "absFLOAT".to_string(), function: std::math::abs_float, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "powINT".to_string(), function: std::math::pow_int, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { name: "powFLOAT".to_string(), function: std::math::pow_float, arg_count: 2, rc_counter: 1, index: 0 },
         ]
     }
 }

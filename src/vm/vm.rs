@@ -254,7 +254,8 @@ impl VM {
 
                 let output = native_fn(stack);
                 if output != Value::Null {
-                    self.frames[self.ip].stack.pop();
+                    for _ in 0..self.rc.get_object(index).get_arg_count() { self.frames[self.ip].stack.pop(); }; 
+
                     self.frames[self.ip].stack.push(output);
                 }
             },
