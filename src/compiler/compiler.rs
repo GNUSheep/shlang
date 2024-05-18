@@ -1898,7 +1898,7 @@ impl Compiler {
 
     pub fn compile(&mut self) -> Chunk {
         // more native types, (think about another way)
-        let string_type = StringObj::init(10);
+        let string_type = StringObj::init(16);
         self.parser.get_symbols(string_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
