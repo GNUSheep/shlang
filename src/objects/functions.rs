@@ -116,6 +116,9 @@ impl NativeFn {
             Symbol { name: "maxf".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 2 },
             Symbol { name: "sqrt".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::INT, arg_count: 1 },
             Symbol { name: "sqrtf".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 1 },
+            Symbol { name: "roundf".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 2 },
+            Symbol { name: "floorf".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 2 },
+            Symbol { name: "ceilf".to_string(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::FLOAT, arg_count: 2 },  
         ]
     }
 
@@ -137,6 +140,9 @@ impl NativeFn {
             NativeFn { name: "maxf".to_string(), function: std::math::max_float, arg_count: 2, rc_counter: 1, index: 0 },
             NativeFn { name: "sqrt".to_string(), function: std::math::sqrt_int, arg_count: 1, rc_counter: 1, index: 0 },
             NativeFn { name: "sqrtf".to_string(), function: std::math::sqrt_float, arg_count: 1, rc_counter: 1, index: 0 },
+            NativeFn { name: "roundf".to_string(), function: std::math::round, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { name: "floorf".to_string(), function: std::math::floor, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { name: "ceilf".to_string(), function: std::math::ceil, arg_count: 2, rc_counter: 1, index: 0 },
         ]
     }
 }

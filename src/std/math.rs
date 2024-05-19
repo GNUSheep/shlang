@@ -310,3 +310,105 @@ pub fn sqrt_float(args: Vec<Value>) -> Value {
 
     Value::Float((a as f64).sqrt())
 }
+
+pub fn round(args: Vec<Value>) -> Value {
+    if args.len() != 2 {
+        error_message("RUNTIME ERROR", "ROUND takes only one arguments".to_string());
+        std::process::exit(1);
+    }
+
+    let a = match args[0].clone() {
+        Value::String(_) => {
+            error_message("RUNTIME ERROR", format!("Cannot use ROUND on string type"));
+            std::process::exit(1);
+        },
+        Value::Float(val) => {
+            val
+        }
+        _ => {
+            error_message("RUNTIME ERROR", format!("ROUND not implemnted for this type: \"{:?}\"", args[0]));
+            std::process::exit(1);
+        }
+    };
+
+    let to = match args[1].clone() {
+        Value::Int(val) => {
+            val
+        }
+        _ => {
+            error_message("RUNTIME ERROR", format!("ROUND: point to where number should be rounded can by only INT TYPE, not: \"{:?}\"", args[0]));
+            std::process::exit(1);
+        }
+    };
+
+    let scale_factor = 10f64.powi(to as i32);
+    Value::Float((a * scale_factor).round() / scale_factor) 
+}
+
+pub fn floor(args: Vec<Value>) -> Value {
+    if args.len() != 2 {
+        error_message("RUNTIME ERROR", "ROUND takes only one arguments".to_string());
+        std::process::exit(1);
+    }
+
+    let a = match args[0].clone() {
+        Value::String(_) => {
+            error_message("RUNTIME ERROR", format!("Cannot use ROUND on string type"));
+            std::process::exit(1);
+        },
+        Value::Float(val) => {
+            val
+        }
+        _ => {
+            error_message("RUNTIME ERROR", format!("ROUND not implemnted for this type: \"{:?}\"", args[0]));
+            std::process::exit(1);
+        }
+    };
+
+    let to = match args[1].clone() {
+        Value::Int(val) => {
+            val
+        }
+        _ => {
+            error_message("RUNTIME ERROR", format!("ROUND: point to where number should be rounded can by only INT TYPE, not: \"{:?}\"", args[0]));
+            std::process::exit(1);
+        }
+    };
+
+    let scale_factor = 10f64.powi(to as i32);
+    Value::Float((a * scale_factor).floor() / scale_factor) 
+}
+
+pub fn ceil(args: Vec<Value>) -> Value {
+    if args.len() != 2 {
+        error_message("RUNTIME ERROR", "ROUND takes only one arguments".to_string());
+        std::process::exit(1);
+    }
+
+    let a = match args[0].clone() {
+        Value::String(_) => {
+            error_message("RUNTIME ERROR", format!("Cannot use ROUND on string type"));
+            std::process::exit(1);
+        },
+        Value::Float(val) => {
+            val
+        }
+        _ => {
+            error_message("RUNTIME ERROR", format!("ROUND not implemnted for this type: \"{:?}\"", args[0]));
+            std::process::exit(1);
+        }
+    };
+
+    let to = match args[1].clone() {
+        Value::Int(val) => {
+            val
+        }
+        _ => {
+            error_message("RUNTIME ERROR", format!("ROUND: point to where number should be rounded can by only INT TYPE, not: \"{:?}\"", args[0]));
+            std::process::exit(1);
+        }
+    };
+
+    let scale_factor = 10f64.powi(to as i32);
+    Value::Float((a * scale_factor).ceil() / scale_factor) 
+}
