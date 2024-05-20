@@ -50,6 +50,7 @@ pub enum TokenType {
 #[allow(non_camel_case_types)]
 pub enum Keywords {
     VAR,
+    LIST,
     INT,
     FLOAT,
     BOOL,
@@ -80,6 +81,7 @@ impl std::str::FromStr for Keywords {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "var" => Ok(Keywords::VAR),
+            "list" => Ok(Keywords::LIST),
             "int" => Ok(Keywords::INT),
             "bool" => Ok(Keywords::BOOL),
             "float" => Ok(Keywords::FLOAT),

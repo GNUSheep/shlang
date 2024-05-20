@@ -804,6 +804,25 @@ impl Compiler {
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
     }
 
+    pub fn list_declare(&mut self) {
+        self.parser.consume(TokenType::IDENTIFIER);
+
+        let list_name = self.parser.prev.value.iter().collect::<String>();
+        if self.get_cur_locals().iter().any(| local | local.name == list_name ) {
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", list_name, self.parser.line));
+            std::process::exit(1);
+        }
+
+        if self.get_cur_instances().iter().any(| local | local.name == list_name ) {
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", list_name, self.parser.line));
+            std::process::exit(1);
+        }
+
+        self.parser.consume(TokenType::COLON);
+   
+        
+    }
+
     pub fn instance_call(&mut self) {
         let name = self.parser.prev.value.iter().collect::<String>();
 
@@ -1468,6 +1487,9 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::VAR) => {
                 self.var_declare();
             },
+            TokenType::KEYWORD(Keywords::LIST) => {
+                self.list_declare();
+            }
             _ => errors::error_unexpected(self.parser.prev.clone(), "declare function"),
         }
     }
@@ -1804,7 +1826,7 @@ impl Compiler {
 
     fn compile_line(&mut self) {
         match self.parser.cur.token_type {
-            TokenType::KEYWORD(Keywords::FN) | TokenType::KEYWORD(Keywords::VAR) => {
+            TokenType::KEYWORD(Keywords::FN) | TokenType::KEYWORD(Keywords::VAR) | TokenType::KEYWORD(Keywords::LIST) => {
                 self.parser.advance();
                 self.declare();
             },
