@@ -820,7 +820,22 @@ impl Compiler {
 
         self.parser.consume(TokenType::COLON);
    
-        
+        let list_type = match self.parser.cur.token_type {
+            TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
+            _ => {
+                errors::error_message("COMPILER ERROR", format!("Expected list type after \":\" {}:", self.parser.line));
+                std::process::exit(1);
+            },
+        };
+        self.parser.advance();
+
+        self.parser.consume(TokenType::EQ);
+        self.parser.consume(TokenType::LEFT_BRACKET);
+
+        // for now list can only be undefined
+        self.parser.consume(TokenType::RIGHT_BRACKET);
+
+        self.get_cur_locals().push(Local { name: list_name, local_type: list_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
     }
 
     pub fn instance_call(&mut self) {
