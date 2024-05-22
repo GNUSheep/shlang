@@ -25,7 +25,7 @@ impl Value {
         match self {
             Value::Float(val) => return *val,
             _ => {
-                errors::conversion_error("Enum Value<_>", "f64");
+                errors::conversion_error(&format!("Enum Value<{:?}>", self), "f64");
                 std::process::exit(1);
             },
         }
@@ -35,7 +35,7 @@ impl Value {
         match self {
             Value::Int(val) => return *val,
             _ => {
-                errors::conversion_error("Enum Value<_>", "i64");
+                errors::conversion_error(&format!("Enum Value<{:?}>", self), "i64");
                 std::process::exit(1);
             },
         }
@@ -45,7 +45,7 @@ impl Value {
         match self {
             Value::Bool(val) => return *val,
             _ => {
-                errors::conversion_error("Enum Value<_>", "bool");
+                errors::conversion_error(&format!("Enum Value<{:?}>", self), "bool");
                 std::process::exit(1);
             },
         }
@@ -55,7 +55,7 @@ impl Value {
         match self {
             Value::Chunk(val) => return val.clone(),
             _ => {
-                errors::conversion_error("Enum Value<_>", "chunk");
+                errors::conversion_error(&format!("Enum Value<{:?}>", self), "chunk");
                 std::process::exit(1);
             },
         }
@@ -66,7 +66,7 @@ impl Value {
             Value::Fn(val) => return *val,
             val => {
                 println!("Value: {:?}", val);
-                errors::conversion_error("Enum Value<_>", "fn");
+                errors::conversion_error(&format!("Enum Value<{:?}>", self), "fn");
                 std::process::exit(1);
             },
         }
@@ -77,7 +77,7 @@ impl Value {
             Value::String(val) => return val.clone(),
             _ => {
                 println!("{:?}", self);
-                errors::conversion_error("Enum Value<_>", "String");
+                errors::conversion_error(&format!("Enum Value<{:?}>", self), "String");
                 std::process::exit(1);
             },
         }

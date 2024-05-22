@@ -206,7 +206,7 @@ impl Parser {
                 let mut arg_count = 0;
                 'args: while let Some(tok) = iter.next() {
                     match tok.token_type {
-                        TokenType::IDENTIFIER => arg_count += 1,
+                        TokenType::COLON => arg_count += 1,
                         TokenType::RIGHT_PAREN | TokenType::EOF => break 'args,
                         _ => {},
                     }
@@ -689,14 +689,14 @@ impl Compiler {
                             return
                         }
 
-                        self.emit_byte(OpCode::GET_STRING_RF(heap_pos), self.parser.line);
+                        self.emit_byte(OpCode::GET_STRING_RF(pos), self.parser.line);
                         if heap_pos == 0 {
                             self.emit_byte(OpCode::POP, self.parser.line);
 
                             self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
                         }
                     }else {
-                        self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
+                        self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
                     }
 
                     if self.changing_fn {
@@ -1130,7 +1130,8 @@ impl Compiler {
             let pos = self.get_instance_local_pos(instance_name);
 
             let heap_pos = self.get_cur_instances()[pos].rf_index;
-            self.emit_byte(OpCode::GET_INSTANCE_RF(heap_pos), self.parser.line);
+            println!("{:?}", self.get_cur_instances()[pos]);
+            self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
             if heap_pos == 0 {
                 self.emit_byte(OpCode::POP, self.parser.line);
                 self.emit_byte(OpCode::GET_INSTANCE_W_OFFSET_RF(pos), self.parser.line);
