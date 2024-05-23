@@ -250,7 +250,6 @@ impl VM {
                     }
                 }
                 stack.reverse();
-
                 let output = native_fn(stack);
                 if output != Value::Null {
                     for _ in 0..self.rc.get_object(index).get_arg_count() { self.frames[self.ip].stack.pop(); }; 
