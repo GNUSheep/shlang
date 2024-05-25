@@ -139,11 +139,11 @@ impl VM {
                 self.rc.push(Box::new(instance));
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
-                let instance_fields = self.rc.get_object(pos+self.frames[self.ip].offset).get_values();
+                let instance_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
+                println!("H: {:?}", instance_fields);
                 match instance_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let fields = self.rc.get_object(index).get_values();
-
                         self.frames[self.ip].stack.push(fields[field_pos].clone());
                         return
                     },
@@ -184,10 +184,12 @@ impl VM {
 
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
+                println!("{:?}", self.rc.get_object(offset+pos).get_values());
             },
             OpCode::GET_STRING_RF(pos) => {
                 // need to find if other method with using it, would be better
-                let offset = self.frames[self.ip].offset - 1;
+                let offset = self.frames[self.ip].offset;
+                println!("OFFSETO: {:?}", self.rc.get_object(offset).get_values());
 
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::StringRef(offset+pos));
@@ -207,7 +209,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count - 1 });
+                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count});
 
                 self.ip += 1;
             }
@@ -227,7 +229,7 @@ impl VM {
                     }
                 }
                 stack.reverse();
-                
+
                 self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count - 1});
                 
                 self.ip += 1;
@@ -269,8 +271,7 @@ impl VM {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            let pos = self.rc.find_object(index);
-                            let fields = self.rc.get_object(pos).get_values();
+                            let fields = self.rc.get_object(index).get_values();
                             stack.push(fields[0].clone());
                         },
                         _ => stack.push(value),
