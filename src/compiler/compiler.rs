@@ -677,11 +677,23 @@ impl Compiler {
             match self.get_cur_instances()[pos as usize].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     let pos = self.get_instance_local_pos(var_name);
+
+                    let heap_pos = self.get_cur_instances()[pos].rf_index;
     
                     let instance_is_string = self.get_cur_instances()[pos].is_string;
                     if instance_is_string {
                         self.get_cur_chunk().push_value(Value::String(String::new()));
+                        if heap_pos != 0 && !self.changing_fn {
+                            self.emit_byte(OpCode::PUSH_STACK(Value::StringRef(heap_pos)), self.parser.line);
+
+                            return
+                        }
                         self.emit_byte(OpCode::GET_STRING_RF(pos), self.parser.line);
+                        if heap_pos == 0 {
+                            self.emit_byte(OpCode::POP, self.parser.line);
+
+                            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
+                        }
                     }else {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
                     }

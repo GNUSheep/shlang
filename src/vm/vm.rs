@@ -184,12 +184,10 @@ impl VM {
 
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
-                println!("{:?}", self.rc.get_object(offset+pos).get_values());
             },
             OpCode::GET_STRING_RF(pos) => {
                 // need to find if other method with using it, would be better
-                let offset = self.frames[self.ip].offset;
-                println!("OFFSETO: {:?}", self.rc.get_object(offset).get_values());
+                let offset = self.frames[self.ip].offset - 1;
 
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::StringRef(offset+pos));
@@ -209,7 +207,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count});
+                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count - 1});
 
                 self.ip += 1;
             }
@@ -271,7 +269,8 @@ impl VM {
                     let value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            let fields = self.rc.get_object(index).get_values();
+                            let pos = self.rc.find_object(index);
+                            let fields = self.rc.get_object(pos).get_values();
                             stack.push(fields[0].clone());
                         },
                         _ => stack.push(value),
