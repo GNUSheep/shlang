@@ -182,12 +182,14 @@ impl VM {
                 // need to find if other method with using it, would be better
                 let offset = self.frames[self.ip].offset;
 
+                println!("OBJ: {:?}: {:?}", pos, self.rc.get_object(offset+pos).get_values());
+
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
             },
             OpCode::GET_STRING_RF(pos) => {
                 // need to find if other method with using it, would be better
-                let offset = self.frames[self.ip].offset - 1;
+                let offset = self.frames[self.ip].offset;
 
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::StringRef(offset+pos));
@@ -207,7 +209,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count - 1});
+                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
 
                 self.ip += 1;
             }
@@ -228,7 +230,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count - 1});
+                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
                 
                 self.ip += 1;
             },

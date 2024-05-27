@@ -575,7 +575,7 @@ impl Compiler {
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
 
-        self.get_cur_instances().push(Local{ name: value.clone(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: true });
+        self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: true });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
 
@@ -695,6 +695,7 @@ impl Compiler {
                             self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
                         }
                     }else {
+                        println!("CONV: {:?}", self.get_cur_instances()[pos]);
                         self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
                     }
 
@@ -1322,16 +1323,16 @@ impl Compiler {
         if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
             self.emit_byte(OpCode::NATIVE_FN_CALL(self.symbol_to_hold), self.parser.line);
 
-            if self.parser.symbols[self.symbol_to_hold].name == "convINT" {
+            if self.parser.symbols[self.symbol_to_hold].name == "conv" {
                 self.get_cur_chunk().push_value(Value::Int(0));
             }
 
-            if self.parser.symbols[self.symbol_to_hold].name == "convFLOAT" {
+            if self.parser.symbols[self.symbol_to_hold].name == "convf" {
                 self.get_cur_chunk().push_value(Value::Float(0.0));
             }
 
 
-            if self.parser.symbols[self.symbol_to_hold].name == "convSTR" {
+            if self.parser.symbols[self.symbol_to_hold].name == "convstr" {
                 self.get_cur_chunk().push_value(Value::String("".to_string()));
             }
         }else{
@@ -1950,6 +1951,9 @@ impl Compiler {
             }
             self.compile_line();
             self.loop_info = LoopInfo::new();
+
+            // tries and errors
+            self.get_cur_instances().retain(| obj | obj.name != "");
         }
         // Dunno if that help with memory
         self.structs = HashMap::new();
