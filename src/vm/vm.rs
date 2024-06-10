@@ -275,7 +275,9 @@ impl VM {
                             let fields = self.rc.get_object(pos).get_values();
                             stack.push(fields[0].clone());
                         },
-                        _ => stack.push(value),
+                        _ => {
+                            stack.push(value);
+                        }
                     }
                 }
                 stack.reverse();

@@ -591,7 +591,6 @@ impl Compiler {
                 self.emit_byte(OpCode::SET_INSTANCE_FIELD(len, 0), self.parser.line);
             }
 
-
             self.get_cur_instances()[len].name = String::new();
         }
     }
@@ -678,27 +677,7 @@ impl Compiler {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     let pos = self.get_instance_local_pos(var_name);
 
-                    let heap_pos = self.get_cur_instances()[pos].rf_index;
-    
-                    let instance_is_string = self.get_cur_instances()[pos].is_string;
-                    if instance_is_string {
-                        self.get_cur_chunk().push_value(Value::String(String::new()));
-                        if heap_pos != 0 && !self.changing_fn {
-                            self.emit_byte(OpCode::PUSH_STACK(Value::StringRef(heap_pos)), self.parser.line);
-
-                            return
-                        }
-                        self.emit_byte(OpCode::GET_STRING_RF(pos), self.parser.line);
-                        if heap_pos == 0 {
-                            self.emit_byte(OpCode::POP, self.parser.line);
-
-                            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
-                        }
-                    }else {
-                        println!("CONV: {:?}", self.get_cur_instances()[pos]);
-                        self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
-                    }
-
+                    self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
                     if self.changing_fn {
                         self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
                     }
@@ -935,9 +914,6 @@ impl Compiler {
                 },
                 TokenType::NULL => {
                     self.get_cur_chunk().push_value(Value::Null);
-                },
-                TokenType::STRING => {
-                    self.get_cur_chunk().push_value(Value::String(String::new()));
                 },
                 _ => {},
             }
@@ -1308,7 +1284,14 @@ impl Compiler {
             self.emit_byte(OpCode::IO_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
 
             if self.parser.symbols[self.symbol_to_hold].name == "input" {
-                self.get_cur_chunk().push_value(Value::String("".to_string()));
+                self.get_cur_chunk().push_value(Value::Int(0));
+            }else {
+                let pos = self.get_cur_chunk().push_value(Value::Null);
+                self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
+                
+                for _ in 0..arg_count {
+                    self.emit_byte(OpCode::POP, self.parser.line);
+                }
             }
 
             return
@@ -1325,14 +1308,9 @@ impl Compiler {
 
             if self.parser.symbols[self.symbol_to_hold].name == "conv" {
                 self.get_cur_chunk().push_value(Value::Int(0));
-            }
-
-            if self.parser.symbols[self.symbol_to_hold].name == "convf" {
+            }else if self.parser.symbols[self.symbol_to_hold].name == "convf" {
                 self.get_cur_chunk().push_value(Value::Float(0.0));
-            }
-
-
-            if self.parser.symbols[self.symbol_to_hold].name == "convstr" {
+            }else if self.parser.symbols[self.symbol_to_hold].name == "convstr" {
                 self.get_cur_chunk().push_value(Value::String("".to_string()));
             }
         }else{
@@ -1849,6 +1827,10 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::RETURN) => {
                 self.parser.advance();
                 self.return_stmt();
+            },
+            TokenType::STRING => {
+                self.parser.advance();
+                self.string_dec();
             },
             TokenType::KEYWORD(Keywords::STRUCT) => {
                 self.parser.advance();
