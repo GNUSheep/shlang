@@ -140,7 +140,7 @@ impl VM {
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-                println!("H: {:?}", instance_fields);
+
                 match instance_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let fields = self.rc.get_object(index).get_values();
@@ -181,18 +181,9 @@ impl VM {
             OpCode::GET_INSTANCE_RF(pos) => {
                 // need to find if other method with using it, would be better
                 let offset = self.frames[self.ip].offset;
-
-                println!("OBJ: {:?}: {:?}", pos, self.rc.get_object(offset+pos).get_values());
-
+                
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
-            },
-            OpCode::GET_STRING_RF(pos) => {
-                // need to find if other method with using it, would be better
-                let offset = self.frames[self.ip].offset;
-
-                self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
-                self.frames[self.ip].stack.push(Value::StringRef(offset+pos));
             },
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];

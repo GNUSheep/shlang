@@ -677,7 +677,13 @@ impl Compiler {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
                     let pos = self.get_instance_local_pos(var_name);
 
-                    self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
+                    if self.get_cur_instances()[pos].is_string && !self.changing_fn {
+                        self.get_cur_chunk().push_value(Value::String(String::new()));
+                        self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
+                    }else {
+                        self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
+                    }
+
                     if self.changing_fn {
                         self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
                     }
@@ -909,6 +915,9 @@ impl Compiler {
                 TokenType::FLOAT => {
                     self.get_cur_chunk().push_value(Value::Float(0.0));
                 },
+                TokenType::STRING => {
+                    self.get_cur_chunk().push_value(Value::String(String::new()));
+                },
                 TokenType::BOOL => {
                     self.get_cur_chunk().push_value(Value::Bool(true));
                 },
@@ -1106,7 +1115,7 @@ impl Compiler {
             let pos = self.get_instance_local_pos(instance_name);
 
             let heap_pos = self.get_cur_instances()[pos].rf_index;
-            println!("{:?}", self.get_cur_instances()[pos]);
+
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
             if heap_pos == 0 {
                 self.emit_byte(OpCode::POP, self.parser.line);
@@ -1524,6 +1533,7 @@ impl Compiler {
             ));
             std::process::exit(1);
         }
+        
 
         self.expression();
 
@@ -1640,12 +1650,14 @@ impl Compiler {
         for index in (0..self.get_cur_instances().len() - self.loop_info.instance_start).rev() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
                     self.get_cur_instances().pop();
                 },
                 _ => {},
             }
         }
+
+        self.emit_byte(OpCode::DEC_TO(self.loop_info.instance_start), self.parser.line);
+
         self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
@@ -1751,12 +1763,14 @@ impl Compiler {
         for index in (0..self.get_cur_instances().len() - self.loop_info.instance_start).rev() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
                     self.get_cur_instances().pop();
                 },
                 _ => {},
             }
         }
+
+        self.emit_byte(OpCode::DEC_TO(self.loop_info.instance_start), self.parser.line);
+
         self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;

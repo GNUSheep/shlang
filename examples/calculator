@@ -9,25 +9,25 @@ fn main() {
         
         var operation: String = input("Enter number to choose operation: ")
         
-        if conv(operation.value) > 5 or conv(operation.value) < 1 {
+        if conv(operation) > 5 or conv(operation) < 1 {
             println("Choose option from 1-5")
             continue
         }
 
-        if conv(operation.value) == 5 {
+        if conv(operation) == 5 {
             break
         }
 
-        var a: int = conv(input("Enter first number: "))
-        var b: int = conv(input("Enter second number: "))
+        var a: float = convf(input("Enter first number: "))
+        var b: float = convf(input("Enter second number: "))
 
-        if operation.value == "1" {
+        if operation == "1" {
             println(a+b)
-        }elif operation.value == "2" {
+        }elif operation == "2" {
             println(a-b)
-        }elif operation.value == "3" {
+        }elif operation == "3" {
             println(a*b)
-        }elif operation.value == "4" {
+        }elif operation == "4" {
             println(a/b)
         }
     }

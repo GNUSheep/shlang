@@ -17,7 +17,10 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
                 return Value::Float(0.0);
             }
 
-            return Value::Float(val.parse::<f64>().unwrap());
+            match val.parse::<f64>() {
+                Ok(v) => return Value::Float(v),
+                Err(e) => panic!("E:{:?}", e),
+            }
         }
         Value::Int(val) => {
             return Value::Float(val as f64);
