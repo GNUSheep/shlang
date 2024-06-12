@@ -7,7 +7,9 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
     }
 
     match args[0].clone() {
-        Value::String(val) => {
+        Value::String(val_untrimed) => {
+            let val = val_untrimed.trim().to_string();
+            
             if !StringMethods::is_digit(args).get_bool() {
                 error_message("RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
                 std::process::exit(1);
@@ -19,7 +21,10 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
 
             match val.parse::<f64>() {
                 Ok(v) => return Value::Float(v),
-                Err(e) => panic!("E:{:?}", e),
+                Err(e) => {
+                    error_message("RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
+                    std::process::exit(1);
+                },
             }
         }
         Value::Int(val) => {
@@ -39,7 +44,9 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
     }
 
     match args[0].clone() {
-        Value::String(val) => {
+        Value::String(val_untrimed) => {
+            let val = val_untrimed.trim().to_string();
+            
             if !StringMethods::is_digit(args).get_bool() {
                 error_message("RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
                 std::process::exit(1);
@@ -49,7 +56,13 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
                 return Value::Int(0);
             }
 
-            return Value::Int(val.parse::<i64>().unwrap());
+            match val.parse::<i64>() {
+                Ok(v) => return Value::Int(v),
+                Err(e) => {
+                    error_message("RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
+                    std::process::exit(1);
+                },
+            }
         }
         Value::Float(val) => {
             return Value::Int(val as i64);

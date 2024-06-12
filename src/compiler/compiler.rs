@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn}, rc::Object, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    objects::{functions::{Function, Local, NativeFn}, lists::ListObj, rc::Object, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -63,7 +63,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::KEYWORD(Keywords::BREAK), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::KEYWORD(Keywords::CONTINUE), ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
-        (TokenType::STRING, ParseRule { prefix: Some(Compiler::string_parse), infix: None, prec: Precedence::NONE }),
+        (TokenType::STRING, ParseRule { prefix: Some(Compiler::string_dec), infix: None, prec: Precedence::NONE }),
 
         (TokenType::RIGHT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
@@ -173,11 +173,17 @@ impl Parser {
         self.advance();
     }
 
-    pub fn get_symbols(&mut self, string_mths_offset: usize) {
+    pub fn get_symbols(&mut self, string_mths_offset: usize, list_mths_offset: usize) {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
+
         symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
+        symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
 
         for _ in 0..string_mths_offset { 
+            symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
+        }
+
+        for _ in 0..list_mths_offset {
             symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
         }
 
@@ -549,11 +555,6 @@ impl Compiler {
 
         self.parser.consume(TokenType::RIGHT_BRACE);
     }
-
-    pub fn string_parse(&mut self) {
-        // todo tmp declare and dec rc 
-        self.string_dec()
-    }
  
     pub fn string_dec(&mut self) {
         let is_assign = if self.parser.peek_prev().token_type == TokenType::EQ {
@@ -593,6 +594,19 @@ impl Compiler {
 
             self.get_cur_instances()[len].name = String::new();
         }
+    }
+
+    pub fn list_dec(&mut self) {
+        let list_type = match self.parser.cur.token_type {
+            TokenType::KEYWORD(keyword) => keyword.convert(),
+            list_type => list_type, 
+        };
+        self.parser.advance();
+
+        self.parser.consume(TokenType::GREATER);
+        self.parser.consume(TokenType::EQ);
+
+        self.parser.consume(TokenType::LEFT_BRACKET);
     }
 
     pub fn identifier(&mut self) {
@@ -789,40 +803,6 @@ impl Compiler {
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
     }
 
-    pub fn list_declare(&mut self) {
-        self.parser.consume(TokenType::IDENTIFIER);
-
-        let list_name = self.parser.prev.value.iter().collect::<String>();
-        if self.get_cur_locals().iter().any(| local | local.name == list_name ) {
-            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", list_name, self.parser.line));
-            std::process::exit(1);
-        }
-
-        if self.get_cur_instances().iter().any(| local | local.name == list_name ) {
-            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", list_name, self.parser.line));
-            std::process::exit(1);
-        }
-
-        self.parser.consume(TokenType::COLON);
-   
-        let list_type = match self.parser.cur.token_type {
-            TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
-            _ => {
-                errors::error_message("COMPILER ERROR", format!("Expected list type after \":\" {}:", self.parser.line));
-                std::process::exit(1);
-            },
-        };
-        self.parser.advance();
-
-        self.parser.consume(TokenType::EQ);
-        self.parser.consume(TokenType::LEFT_BRACKET);
-
-        // for now list can only be undefined
-        self.parser.consume(TokenType::RIGHT_BRACKET);
-
-        self.get_cur_locals().push(Local { name: list_name, local_type: list_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
-    }
-
     pub fn instance_call(&mut self) {
         let name = self.parser.prev.value.iter().collect::<String>();
 
@@ -932,6 +912,13 @@ impl Compiler {
     }
 
     pub fn instance_declare(&mut self, pos: usize, name: String) {
+        if self.parser.prev.value.iter().collect::<String>() == "List" {
+            self.parser.consume(TokenType::LESS);
+            self.list_dec();
+
+            return
+        }
+        
         if self.parser.cur.token_type != TokenType::EQ {
             errors::error_message("COMPILING ERROR", format!("Struct cannot be left undeclared {}:",
                 self.parser.line,
@@ -1490,9 +1477,6 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::VAR) => {
                 self.var_declare();
             },
-            TokenType::KEYWORD(Keywords::LIST) => {
-                self.list_declare();
-            }
             _ => errors::error_unexpected(self.parser.prev.clone(), "declare function"),
         }
     }
@@ -1930,15 +1914,25 @@ impl Compiler {
         }
     }
 
-    pub fn compile(&mut self) -> Chunk {
-        // more native types, (think about another way)
+    pub fn impl_native_types(&mut self) {
+        // STRING
+
+        // 19 natives builtin functions
         let string_type = StringObj::init(19);
-        self.parser.get_symbols(string_type.clone().methods.len());
+        let list_type = ListObj::init();
+        
+        self.parser.get_symbols(string_type.clone().methods.len(), list_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
         self.structs.insert("String".to_string(), string_type);
 
-        
+        self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(list_type.clone()), line: 0 });
+        self.structs.insert("List".to_string(), list_type);
+    }
+
+    pub fn compile(&mut self) -> Chunk {
+        self.impl_native_types();
+
         self.parser.advance();
         loop {
             self.parser.line = self.parser.cur.line;
