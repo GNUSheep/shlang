@@ -1,0 +1,10 @@
+fn main() {
+    var op: String = input()
+
+    println(op)
+
+    var a: int = 5
+    var b: int = 10
+
+    println(a, " ", b, " ", a+b)
+}

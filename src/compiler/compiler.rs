@@ -596,7 +596,7 @@ impl Compiler {
         }
     }
 
-    pub fn list_dec(&mut self) {
+    pub fn list_dec(&mut self, name: String) {
         let list_type = match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => keyword.convert(),
             list_type => list_type, 
@@ -607,8 +607,21 @@ impl Compiler {
         self.parser.consume(TokenType::EQ);
 
         self.parser.consume(TokenType::LEFT_BRACKET);
-    }
+        self.parser.consume(TokenType::RIGHT_BRACKET);       
 
+        let pos = self.get_struct_symbol_pos("List".to_string());
+        let mut list_obj = StructInstance::new(pos);
+
+        let len = self.parser.symbols.len();
+        list_obj.set_index(len);
+
+        self.emit_byte(OpCode::INSTANCE_DEC(list_obj), self.parser.line);
+
+        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: false });
+
+        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: list_type, arg_count: 0 })
+    }
+    
     pub fn identifier(&mut self) {
         if self.parser.cur.token_type == TokenType::EQ {
             self.var_assign();
@@ -688,7 +701,7 @@ impl Compiler {
 
         if pos != -1 {
             match self.get_cur_instances()[pos as usize].local_type {
-                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {        
                     let pos = self.get_instance_local_pos(var_name);
 
                     if self.get_cur_instances()[pos].is_string && !self.changing_fn {
@@ -914,7 +927,7 @@ impl Compiler {
     pub fn instance_declare(&mut self, pos: usize, name: String) {
         if self.parser.prev.value.iter().collect::<String>() == "List" {
             self.parser.consume(TokenType::LESS);
-            self.list_dec();
+            self.list_dec(name);
 
             return
         }

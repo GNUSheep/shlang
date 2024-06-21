@@ -1,0 +1,16 @@
+struct Num {
+    n: int,
+    name: String,
+}
+
+fn add(a: Num, b: Num) {
+    var sum: int = a.n + b.n
+    println("Sum: ", sum, " a: ", a.name, " ", a.n)
+}
+
+fn main() {
+    var a: Num = { 2, "dwa" }
+    var b: Num = { 3, "trzy" }
+
+    add(a, b)
+}

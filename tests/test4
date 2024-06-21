@@ -1,0 +1,21 @@
+fn loop(a: String p: String) {
+    println(a, " ", p)
+    while true {
+        var x: String = input()
+        if x == "QUIT" {
+            break
+        }
+        beep(x)
+    }
+    println(a, ": ", p)
+}
+
+fn beep(x: String) {
+    println(x)
+}
+
+fn main() {
+    var p: String = "QUITOO"
+    loop("LASDAS", p)
+    println("HL: ", p)
+}

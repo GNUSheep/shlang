@@ -1,0 +1,35 @@
+struct Num {
+    n: int,
+    a: int,
+    c: int,
+
+    methods {
+        get(self) int {
+            return self.n
+        }
+    }
+}
+
+struct Add {
+    a: int,
+    b: int,
+
+    methods {
+        set(self, a: Num, b: int) {
+            self.a = a.get()
+            self.b = b
+        }
+        sum(self) {
+            println(self.a+self.b)
+        }
+    }
+}
+
+
+fn main() {
+    var s: Add = {0, 0}
+    var num: Num = {100, 50, 40}
+
+    s.set(num, 190)
+    s.sum()
+}
