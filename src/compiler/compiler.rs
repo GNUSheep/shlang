@@ -177,11 +177,12 @@ impl Parser {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
 
         symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
-        symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
 
         for _ in 0..string_mths_offset { 
             symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
         }
+
+        symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::INT, arg_count: 0 });
 
         for _ in 0..list_mths_offset {
             symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
@@ -606,16 +607,38 @@ impl Compiler {
         self.parser.consume(TokenType::GREATER);
         self.parser.consume(TokenType::EQ);
 
-        self.parser.consume(TokenType::LEFT_BRACKET);
-        self.parser.consume(TokenType::RIGHT_BRACKET);       
-
         let pos = self.get_struct_symbol_pos("List".to_string());
         let mut list_obj = StructInstance::new(pos);
+
+        let mut field_count = 0;
+        self.parser.consume(TokenType::LEFT_BRACKET);
+        while self.parser.cur.token_type != TokenType::RIGHT_BRACKET {
+            self.expression();
+
+            if self.get_cur_chunk().get_last_value().convert() != list_type {
+                let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                errors::error_message("COMPILER ERROR",
+                format!("Expected to find {:?} but found: {:?} {}:", 
+                    list_type, 
+                    value_type,
+                    self.parser.line
+                ));
+                std::process::exit(1);
+            }
+            
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
+
+            field_count += 1;
+        }
+        self.parser.consume(TokenType::RIGHT_BRACKET);       
 
         let len = self.parser.symbols.len();
         list_obj.set_index(len);
 
-        self.emit_byte(OpCode::INSTANCE_DEC(list_obj), self.parser.line);
+        self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
         self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: false });
 
@@ -703,7 +726,7 @@ impl Compiler {
             match self.get_cur_instances()[pos as usize].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {        
                     let pos = self.get_instance_local_pos(var_name);
-
+                    println!("{:?}", self.get_cur_instances()[pos]);
                     if self.get_cur_instances()[pos].is_string && !self.changing_fn {
                         self.get_cur_chunk().push_value(Value::String(String::new()));
                         self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
@@ -1045,7 +1068,7 @@ impl Compiler {
         let len = self.parser.symbols.len();
         instance_obj.set_index(len);
 
-        self.emit_byte(OpCode::INSTANCE_DEC(instance_obj), self.parser.line);
+        self.emit_byte(OpCode::INSTANCE_DEC(instance_obj, field_counts), self.parser.line);
 
         self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_string: false });
 
@@ -1933,7 +1956,7 @@ impl Compiler {
         // 19 natives builtin functions
         let string_type = StringObj::init(19);
         let list_type = ListObj::init();
-        
+
         self.parser.get_symbols(string_type.clone().methods.len(), list_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });

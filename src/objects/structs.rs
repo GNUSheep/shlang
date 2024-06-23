@@ -41,7 +41,7 @@ impl Object for Struct {
     }
 
     fn get_values(&self) -> Vec<Value> {
-        vec![Value::Bool(true)]
+        vec![Value::String(self.name.clone())]
     }
 
     fn set_value(&mut self, _pos: usize, _value: Value) {

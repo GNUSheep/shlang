@@ -37,9 +37,9 @@ impl VM {
     }
 
     pub fn declare_native(&mut self) {
-        let natvies_fn = NativeFn::get_natives_fn();
+        let natives_fn = NativeFn::get_natives_fn();
 
-        for native in natvies_fn {
+        for native in natives_fn {
             self.rc.push(Box::new(native));
         }
     }
@@ -60,7 +60,7 @@ impl VM {
                     let name = struct_.name == "String";
 
                     self.rc.push(Box::new(struct_));
-                    
+
                     if name {
                         let mths_string = StringMethods::get_methods_rc();
 
@@ -129,8 +129,7 @@ impl VM {
                 self.rc.push(Box::new(instance));
             },
 
-            OpCode::INSTANCE_DEC(mut instance) => {
-                let field_count = self.rc.get_object(instance.root_struct_pos).get_arg_count();
+            OpCode::INSTANCE_DEC(mut instance, field_count) => {
                 for _ in 0..field_count {
                     instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap())
                 }
