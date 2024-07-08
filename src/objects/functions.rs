@@ -6,13 +6,20 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq)]
+pub enum SpecialType {
+    String,
+    List,
+    Null,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Local {
     pub name: String,
     pub local_type: TokenType,
     pub is_redirected: bool,
     pub redirect_pos: usize,
     pub rf_index: usize,
-    pub is_string: bool,
+    pub is_special: SpecialType,
 }
 
 #[derive(Clone, Debug, PartialEq)]

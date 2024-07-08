@@ -6,7 +6,7 @@ use crate::{
     vm::{bytecode::{Instruction, OpCode}, value::Value
 }};
 
-use super::{functions::{Function, NativeFn, Local}, structs::Struct};
+use super::{functions::{Function, Local, NativeFn, SpecialType}, structs::Struct};
 
 pub struct StringObj {}
 
@@ -16,7 +16,7 @@ impl StringObj {
 
         Struct {
             name: "String".to_string(),
-            locals: vec![Local { name: "value".to_string(), local_type: TokenType::STRING, is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: true }],
+            locals: vec![Local { name: "value".to_string(), local_type: TokenType::STRING, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String }],
             output_type: TokenType::NULL,
             field_count: 1,
             methods: mths.get_methods(),
@@ -77,11 +77,11 @@ impl StringMethods {
         function.is_self_arg = true;
         function.arg_count = arg_count - 1;
 
-        function.instances.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: false });
+        function.instances.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
         
         if arg_type == TokenType::STRING {
             for i in 1..arg_count {
-                function.instances.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_string: true });
+                function.instances.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
                 function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(i, 0), line: 1});
             }
         }

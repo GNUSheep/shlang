@@ -184,6 +184,31 @@ impl VM {
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
             },
+
+            OpCode::GET_LIST_FIELD(pos) => {
+                let list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
+
+                let field_pos = match self.frames[self.ip].stack.pop() {
+                    Some(Value::Int(val)) => {
+                        if val < 0 { panic!() };
+                        val as usize
+                    }
+                    _ => panic!(),
+                };
+
+                if field_pos >= list_fields.len() { panic!() };
+    
+                match list_fields[0] {
+                    Value::InstanceRef(index) | Value::StringRef(index)  => {
+                        let fields = self.rc.get_object(index).get_values();
+                        self.frames[self.ip].stack.push(fields[field_pos].clone());
+                        return
+                    },
+                    _ => {},
+                };
+                self.frames[self.ip].stack.push(list_fields[field_pos].clone());
+            },
+            
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;

@@ -18,6 +18,8 @@ pub enum OpCode {
     GET_INSTANCE_W_OFFSET_RF(usize),
     METHOD_CALL(functions::Function),
 
+    GET_LIST_FIELD(usize),
+
     IF_STMT_OFFSET(usize),
     JUMP(usize),
 
