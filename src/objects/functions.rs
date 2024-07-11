@@ -8,7 +8,7 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub enum SpecialType {
     String,
-    List,
+    List(Value),
     Null,
 }
 

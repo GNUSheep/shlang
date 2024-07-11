@@ -14,6 +14,8 @@ pub enum Value {
     Bool(bool),
     Null,
     String(String),
+    List,
+    ListObj(Vec<Value>),
     Chunk(Chunk),
     InstanceRef(usize),
     StringRef(usize),
@@ -136,6 +138,7 @@ impl std::fmt::Display for Value {
             Value::Int(val) => write!(output, "{}", val),
             Value::Bool(val) => write!(output, "{}", val),
             Value::String(val) => write!(output, "{}", val),
+            Value::ListObj(val) => write!(output, "{:?}", val),
             Value::Null => write!(output, "null"),
             v => {
                 errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));

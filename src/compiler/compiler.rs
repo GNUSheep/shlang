@@ -643,7 +643,22 @@ impl Compiler {
 
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
-        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::List });
+        let list_type_value = match list_type {
+            TokenType::INT => Value::Int(0),
+            TokenType::FLOAT => Value::Float(0.0),
+            TokenType::STRING => Value::String(String::new()),
+            TokenType::BOOL =>  Value::Bool(false),
+            _ => {
+                errors::error_message("COMPILER ERROR",
+                format!("List of {:?} is not implemented yet {}:", 
+                    list_type, 
+                    self.parser.line
+                ));
+                std::process::exit(1);
+            }
+        };
+
+        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::List(list_type_value) });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: list_type, arg_count: 0 })
     }
@@ -729,21 +744,34 @@ impl Compiler {
             match self.get_cur_instances()[pos as usize].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {        
                     let pos = self.get_instance_local_pos(var_name);
-                    println!("CO TO: {:?}", self.get_cur_instances()[pos]);
+
                     if self.get_cur_instances()[pos].is_special == SpecialType::String && !self.changing_fn {
                         self.get_cur_chunk().push_value(Value::String(String::new()));
                         self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
-                    }else if self.get_cur_instances()[pos].is_special == SpecialType::List && !self.changing_fn {
+                    }else if matches!(self.get_cur_instances()[pos].is_special, SpecialType::List(_)) && !self.changing_fn {
                         if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
-                            // TODO LIST VALUE
+                            self.get_cur_chunk().push_value(Value::List);
+
+                            self.emit_byte(OpCode::GET_LIST(pos), self.parser.line);
                         }else {
+                            let list_type = match self.get_cur_instances()[pos].is_special.clone() {
+                                SpecialType::List(val) => val,
+                                _ => {
+                                    errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
+                                        self.get_cur_instances()[pos].is_special.clone(),
+                                        self.parser.line,
+                                    ));
+                                    std::process::exit(1);
+                                }
+                            };
+                        
                             self.parser.consume(TokenType::LEFT_BRACKET);
                             self.expression();
                             self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
                             self.parser.consume(TokenType::RIGHT_BRACKET);
+                            
+                            self.get_cur_chunk().push_value(list_type);
                         }
-
-                        
                     }else {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
                     }

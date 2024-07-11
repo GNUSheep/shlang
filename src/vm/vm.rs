@@ -190,13 +190,22 @@ impl VM {
 
                 let field_pos = match self.frames[self.ip].stack.pop() {
                     Some(Value::Int(val)) => {
-                        if val < 0 { panic!() };
+                        if val < 0 {     
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - Index cannot be negative {}:", instruction.line));
+                        };
                         val as usize
                     }
-                    _ => panic!(),
+                    _ => {                        
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        std::process::exit(1);
+                    },
                 };
 
-                if field_pos >= list_fields.len() { panic!() };
+                if field_pos >= list_fields.len() {                
+                    errors::error_message("RUNTIME - VM ERROR", 
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, list_fields.len(), instruction.line));
+                };
     
                 match list_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
@@ -207,6 +216,19 @@ impl VM {
                     _ => {},
                 };
                 self.frames[self.ip].stack.push(list_fields[field_pos].clone());
+            },
+            OpCode::GET_LIST(pos) => {
+                let mut list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
+            
+                list_fields = match list_fields[0] {
+                    Value::InstanceRef(index) | Value::StringRef(index)  => {
+                        self.rc.get_object(index).get_values()
+                    },
+                    _ => list_fields,
+                };
+                list_fields.reverse();
+
+                self.frames[self.ip].stack.push(Value::ListObj(list_fields));
             },
             
             OpCode::METHOD_CALL(mth) => {

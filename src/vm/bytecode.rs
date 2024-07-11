@@ -19,6 +19,7 @@ pub enum OpCode {
     METHOD_CALL(functions::Function),
 
     GET_LIST_FIELD(usize),
+    GET_LIST(usize),
 
     IF_STMT_OFFSET(usize),
     JUMP(usize),
