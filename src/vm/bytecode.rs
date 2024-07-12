@@ -20,6 +20,7 @@ pub enum OpCode {
 
     GET_LIST_FIELD(usize),
     GET_LIST(usize),
+    SET_LIST_FIELD(usize),
 
     IF_STMT_OFFSET(usize),
     JUMP(usize),

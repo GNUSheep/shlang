@@ -43,6 +43,7 @@ pub enum TokenType {
     INT,
     FLOAT,
     BOOL,
+    LIST,
     NULL,
     ERROR,
     EOF,

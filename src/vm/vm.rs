@@ -206,31 +206,54 @@ impl VM {
                     errors::error_message("RUNTIME - VM ERROR", 
                         format!("VM - List index out of range  {}/{} {}:", field_pos, list_fields.len(), instruction.line));
                 };
-    
-                match list_fields[0] {
-                    Value::InstanceRef(index) | Value::StringRef(index)  => {
-                        let fields = self.rc.get_object(index).get_values();
-                        self.frames[self.ip].stack.push(fields[field_pos].clone());
-                        return
-                    },
-                    _ => {},
-                };
+                
                 self.frames[self.ip].stack.push(list_fields[field_pos].clone());
             },
             OpCode::GET_LIST(pos) => {
-                let mut list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-            
-                list_fields = match list_fields[0] {
-                    Value::InstanceRef(index) | Value::StringRef(index)  => {
-                        self.rc.get_object(index).get_values()
-                    },
-                    _ => list_fields,
-                };
-                list_fields.reverse();
+                let list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
 
-                self.frames[self.ip].stack.push(Value::ListObj(list_fields));
+                let mut list_fields_unwrap = vec![];
+                for field in list_fields {
+                    match field {
+                        Value::InstanceRef(index) | Value::StringRef(index)  => {
+                            list_fields_unwrap.push(self.rc.get_object(index).get_values()[0].clone());
+                        },
+                        _ => {
+                            list_fields_unwrap.push(field);
+                        },
+                    }
+                };
+
+                self.frames[self.ip].stack.push(Value::ListObj(list_fields_unwrap));
             },
-            
+            OpCode::SET_LIST_FIELD(pos) => {                
+                let len = self.frames[self.ip].stack.len() - 1;
+                
+                let value = match self.frames[self.ip].stack.pop() {
+                    Some(val) => val,
+                    _ => {
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: missing value on stack {}:", instruction.line));
+                        std::process::exit(1);
+                    }    
+                };
+
+                let field_pos = match self.frames[self.ip].stack[len - 1].clone() {
+                    Value::Int(val) => {
+                        if val < 0 {     
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - Index cannot be negative {}:", instruction.line));
+                        };
+                        val as usize
+                    }
+                    _ => {                        
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: bad value on stack {}:", instruction.line));
+                        std::process::exit(1);
+                    },
+                };
+
+                self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
+            },
+
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];
                 let mut instance_rf_count = 0;

@@ -637,7 +637,7 @@ impl Compiler {
             field_count += 1;
         }
         self.parser.consume(TokenType::RIGHT_BRACKET);       
-
+        
         let len = self.parser.symbols.len();
         list_obj.set_index(len);
 
@@ -767,8 +767,31 @@ impl Compiler {
                         
                             self.parser.consume(TokenType::LEFT_BRACKET);
                             self.expression();
-                            self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
                             self.parser.consume(TokenType::RIGHT_BRACKET);
+
+                            if self.parser.cur.token_type == TokenType::EQ {
+                                self.parser.consume(TokenType::EQ);
+
+                                self.expression();
+
+                                if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
+                                    let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                                    errors::error_message("COMPILER ERROR",
+                                        format!("Expected to find {:?} but found: {:?} {}:", 
+                                        list_type.convert(), 
+                                        value_type,
+                                        self.parser.line
+                                    ));
+                                    std::process::exit(1);
+                                }
+            
+                                self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
+                            
+                                return
+                            }
+                            
+                            self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
                             
                             self.get_cur_chunk().push_value(list_type);
                         }
