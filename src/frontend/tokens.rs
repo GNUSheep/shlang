@@ -1,6 +1,8 @@
 use crate::vm::value::Convert;
 use crate::compiler::errors;
 
+use std::fmt;
+
 #[derive(Debug, PartialEq)]
 #[derive(Clone)]
 pub struct Token {
@@ -47,6 +49,21 @@ pub enum TokenType {
     NULL,
     ERROR,
     EOF,
+}
+
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, output: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TokenType::INT => write!(output, "INT"),
+            TokenType::FLOAT => write!(output, "FLOAT"),
+            TokenType::BOOL => write!(output, "BOOL"),
+            TokenType::STRING => write!(output, "STRING"),
+            v => {
+                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
+                std::process::exit(1);
+            },
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Copy, Clone, Eq, Hash)]

@@ -123,6 +123,7 @@ impl Convert for Value {
             Value::Bool(_) => TokenType::BOOL,
             Value::Null => TokenType::NULL,
             Value::String(_) => TokenType::STRING,
+            Value::InstanceRef(val) => TokenType::STRUCT(val), 
             Value::List | Value::ListObj(_) => TokenType::LIST,
             _ => {
                 errors::conversion_error("Enum Value<_>", "TokenType");

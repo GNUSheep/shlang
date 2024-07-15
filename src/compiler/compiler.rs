@@ -603,7 +603,13 @@ impl Compiler {
     pub fn list_dec(&mut self, name: String) {
         let list_type = match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => keyword.convert(),
-            list_type => list_type, 
+            TokenType::IDENTIFIER => {
+                let struct_name = self.parser.cur.value.iter().collect::<String>();
+                let struct_pos = self.get_struct_symbol_pos(struct_name);
+                
+                TokenType::STRUCT(struct_pos)                
+            }, 
+            list_type => list_type,
         };
         self.parser.advance();
 
@@ -621,9 +627,16 @@ impl Compiler {
             if self.get_cur_chunk().get_last_value().convert() != list_type {
                 let value_type = self.get_cur_chunk().get_last_value().convert();
 
+                let list_type_error = match list_type {
+                    TokenType::STRUCT(pos) => {
+                        format!("STRUCT: {}", self.parser.symbols[pos].name.clone())  
+                    },
+                    val => val.to_string(),
+                };
+
                 errors::error_message("COMPILER ERROR",
-                format!("Expected to find {:?} but found: {:?} {}:", 
-                    list_type, 
+                format!("Expected to find {} but found {:?} {}:", 
+                    list_type_error, 
                     value_type,
                     self.parser.line
                 ));
@@ -640,7 +653,7 @@ impl Compiler {
         
         let len = self.parser.symbols.len();
         list_obj.set_index(len);
-
+        println!("{:?}", len);
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
         let list_type_value = match list_type {
@@ -648,6 +661,7 @@ impl Compiler {
             TokenType::FLOAT => Value::Float(0.0),
             TokenType::STRING => Value::String(String::new()),
             TokenType::BOOL =>  Value::Bool(false),
+            TokenType::STRUCT(val) => Value::InstanceRef(val),
             _ => {
                 errors::error_message("COMPILER ERROR",
                 format!("List of {:?} is not implemented yet {}:", 
@@ -742,23 +756,23 @@ impl Compiler {
 
         if pos != -1 {
             match self.get_cur_instances()[pos as usize].local_type {
-                TokenType::KEYWORD(Keywords::INSTANCE(_)) => {        
-                    let pos = self.get_instance_local_pos(var_name);
-
-                    if self.get_cur_instances()[pos].is_special == SpecialType::String && !self.changing_fn {
+                TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
+                    self.get_cur_chunk().push_value(Value::InstanceRef(root_struct_pos));
+                    
+                    if self.get_cur_instances()[pos as usize].is_special == SpecialType::String && !self.changing_fn {
                         self.get_cur_chunk().push_value(Value::String(String::new()));
-                        self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
-                    }else if matches!(self.get_cur_instances()[pos].is_special, SpecialType::List(_)) && !self.changing_fn {
+                        self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, 0), self.parser.line);
+                    }else if matches!(self.get_cur_instances()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
                         if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
                             self.get_cur_chunk().push_value(Value::List);
 
-                            self.emit_byte(OpCode::GET_LIST(pos), self.parser.line);
+                            self.emit_byte(OpCode::GET_LIST(pos as usize), self.parser.line);
                         }else {
-                            let list_type = match self.get_cur_instances()[pos].is_special.clone() {
+                            let list_type = match self.get_cur_instances()[pos as usize].is_special.clone() {
                                 SpecialType::List(val) => val,
                                 _ => {
                                     errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
-                                        self.get_cur_instances()[pos].is_special.clone(),
+                                        self.get_cur_instances()[pos as usize].is_special.clone(),
                                         self.parser.line,
                                     ));
                                     std::process::exit(1);
@@ -791,12 +805,13 @@ impl Compiler {
                                 return
                             }
                             
-                            self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
+                            self.emit_byte(OpCode::GET_LIST_FIELD(pos as usize), self.parser.line);
                             
                             self.get_cur_chunk().push_value(list_type);
                         }
                     }else {
-                        self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
+                        println!("{:?}", self.get_cur_instances()[pos as usize]);
+                        self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
                     }
 
                     if self.changing_fn {

@@ -134,7 +134,7 @@ impl VM {
                     instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap())
                 }
                 instance.fields_values.reverse();
-
+                
                 self.rc.push(Box::new(instance));
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
@@ -193,6 +193,7 @@ impl VM {
                         if val < 0 {     
                             errors::error_message("RUNTIME - VM ERROR", 
                                 format!("VM - Index cannot be negative {}:", instruction.line));
+                            std::process::exit(1);
                         };
                         val as usize
                     }
@@ -205,6 +206,7 @@ impl VM {
                 if field_pos >= list_fields.len() {                
                     errors::error_message("RUNTIME - VM ERROR", 
                         format!("VM - List index out of range  {}/{} {}:", field_pos, list_fields.len(), instruction.line));
+                    std::process::exit(1);
                 };
                 
                 self.frames[self.ip].stack.push(list_fields[field_pos].clone());
@@ -223,7 +225,7 @@ impl VM {
                         },
                     }
                 };
-
+                
                 self.frames[self.ip].stack.push(Value::ListObj(list_fields_unwrap));
             },
             OpCode::SET_LIST_FIELD(pos) => {                
