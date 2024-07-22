@@ -279,6 +279,7 @@ pub struct Compiler {
     loop_info: LoopInfo,
     structs: HashMap<String, Struct>,
     changing_fn: bool,
+    declaring_list: bool,
 }
 
 impl Compiler {
@@ -300,6 +301,7 @@ impl Compiler {
             loop_info: LoopInfo::new(),
             structs: HashMap::new(),
             changing_fn: false,
+            declaring_list: false,
         }
     }
 
@@ -620,7 +622,9 @@ impl Compiler {
         let mut list_obj = StructInstance::new(pos);
 
         let mut field_count = 0;
-        self.parser.consume(TokenType::LEFT_BRACKET);
+
+        self.declaring_list = true;
+        self.parser.consume(TokenType::LEFT_BRACKET);        
         while self.parser.cur.token_type != TokenType::RIGHT_BRACKET {
             self.expression();
 
@@ -650,6 +654,7 @@ impl Compiler {
             field_count += 1;
         }
         self.parser.consume(TokenType::RIGHT_BRACKET);       
+        self.declaring_list = false;
         
         let len = self.parser.symbols.len();
         list_obj.set_index(len);
@@ -809,8 +814,10 @@ impl Compiler {
                             
                             self.get_cur_chunk().push_value(list_type);
                         }
-                    }else {
-                        println!("{:?}", self.get_cur_instances()[pos as usize]);
+                    } else if self.declaring_list {
+                        let rf_index = self.get_cur_instances()[pos as usize].rf_index;
+                        self.emit_byte(OpCode::PUSH_STACK(Value::InstanceRef(rf_index)), self.parser.line);
+                    } else {
                         self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
                     }
 
@@ -966,9 +973,10 @@ impl Compiler {
 
             return
         }
+        
 
         let field_index = self.structs.get(&root_struct_name).unwrap().locals
-            .iter()
+    .iter()
             .enumerate()
             .find(|(_, local)| *local.name == field_name)
             .map(|(index, _)| index as i32)
@@ -1042,6 +1050,7 @@ impl Compiler {
             std::process::exit(1);
         }
         self.parser.consume(TokenType::EQ);
+        println!("{:?}", self.parser.cur);
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
             if self.parser.cur.token_type == TokenType::STRING {
                 let pos = self.get_cur_instances().len();

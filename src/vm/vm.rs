@@ -217,7 +217,10 @@ impl VM {
                 let mut list_fields_unwrap = vec![];
                 for field in list_fields {
                     match field {
-                        Value::InstanceRef(index) | Value::StringRef(index)  => {
+                        Value::InstanceRef(index) => {
+                            list_fields_unwrap.push(Value::InstanceObj(self.rc.get_object(index).get_values()));   
+                        },
+                        Value::StringRef(index) => {
                             list_fields_unwrap.push(self.rc.get_object(index).get_values()[0].clone());
                         },
                         _ => {

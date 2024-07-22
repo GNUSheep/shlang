@@ -16,6 +16,7 @@ pub enum Value {
     String(String),
     List,
     ListObj(Vec<Value>),
+    InstanceObj(Vec<Value>),
     Chunk(Chunk),
     InstanceRef(usize),
     StringRef(usize),
