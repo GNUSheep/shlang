@@ -170,7 +170,7 @@ impl Parser {
 
     pub fn consume(&mut self, token_type: TokenType) {
         if self.cur.token_type != token_type {
-            errors::error_message("PARSER ERROR", format!("Expected to find a {:?}", token_type));
+            errors::error_message("PARSER ERROR", format!("Expected to find a {:?}, but found: {:?} {}:", token_type, self.cur.token_type, self.line));
             std::process::exit(1);
         }
         self.advance();
@@ -973,10 +973,9 @@ impl Compiler {
 
             return
         }
-        
 
         let field_index = self.structs.get(&root_struct_name).unwrap().locals
-    .iter()
+            .iter()
             .enumerate()
             .find(|(_, local)| *local.name == field_name)
             .map(|(index, _)| index as i32)
@@ -1050,7 +1049,7 @@ impl Compiler {
             std::process::exit(1);
         }
         self.parser.consume(TokenType::EQ);
-        println!("{:?}", self.parser.cur);
+
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
             if self.parser.cur.token_type == TokenType::STRING {
                 let pos = self.get_cur_instances().len();
@@ -1093,7 +1092,7 @@ impl Compiler {
                 self.symbol_to_hold = pos as usize;
                 self.parser.consume(TokenType::LEFT_PAREN);
                 self.fn_call();
-
+                
                 if value == "input" {
                     let pos = self.get_struct_symbol_pos("String".to_string());
                     let mut instance_obj = StructInstance::new(pos);
@@ -1106,9 +1105,12 @@ impl Compiler {
 
                     self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
                     self.get_cur_chunk().push_value(Value::String(String::new()));
+                
+                    return
                 }
                 
                 return
+
             }
 
             let pos = self.get_instance_local_pos(value);
@@ -1121,7 +1123,6 @@ impl Compiler {
             return
         }
         self.parser.consume(TokenType::LEFT_BRACE);
-        
         let mut field_counts = 0;
 
         let root_struct_name = self.parser.symbols[pos].name.clone();
@@ -1177,7 +1178,6 @@ impl Compiler {
         let mut struct_obj = Struct::new(name.clone());
 
         self.scope_depth += 1;
-
         self.parser.consume(TokenType::LEFT_BRACE);
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE && self.parser.cur.token_type != TokenType::KEYWORD(Keywords::METHODS) {
             self.parser.consume(TokenType::IDENTIFIER);
@@ -1543,6 +1543,19 @@ impl Compiler {
                 function.output_type = keyword.convert();
                 self.parser.consume(TokenType::KEYWORD(keyword))
             },
+            TokenType::IDENTIFIER => {
+                let val = self.parser.cur.value.iter().collect::<String>();
+
+                if !self.structs.contains_key(&val) {
+                    errors::error_message("COMPILER ERROR", format!("Unexpected return type {:?} {}:", self.parser.cur.token_type, self.parser.line));
+                    std::process::exit(1);
+                }
+                
+                let pos = self.get_struct_symbol_pos(val); 
+                function.output_type = TokenType::STRUCT(pos);  
+                
+                self.parser.consume(TokenType::IDENTIFIER)
+            },
             _ => {
                 function.output_type = TokenType::NULL;
             }
@@ -1608,27 +1621,26 @@ impl Compiler {
 
     pub fn return_stmt(&mut self) {
         self.expression();
+        
+        let var_type = match self.get_cur_chunk().get_last_instruction().op {
+            OpCode::VAR_CALL(index) => {           
+                self.get_cur_locals()[index].local_type
+            },
+            OpCode::GET_INSTANCE_RF(index) => {
+                self.get_cur_chunk().get_last_value().convert()
+            }
+            _ => {
+                self.get_cur_chunk().get_last_value().convert()   
+            }
+        };
 
-        if let OpCode::VAR_CALL(index) = self.get_cur_chunk().get_last_instruction().op {
-            let var_type = self.get_cur_locals()[index].local_type; 
-            if var_type != self.cur_function.output_type {
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
-                    self.cur_function.output_type,
-                    var_type,
-                    self.parser.line,
-                ));
-                std::process::exit(1);
-            }
-        }else {
-            let value_type = self.get_cur_chunk().get_last_value().convert();
-            if value_type != self.cur_function.output_type {
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
-                    self.cur_function.output_type,
-                    value_type,
-                    self.parser.line,
-                ));
-                std::process::exit(1);
-            }
+        if var_type != self.cur_function.output_type {
+            errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
+                self.cur_function.output_type,
+                var_type,
+                self.parser.line,
+            ));
+            std::process::exit(1);
         }
 
         self.emit_byte(OpCode::RETURN, self.parser.line);
