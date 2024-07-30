@@ -105,7 +105,9 @@ impl VM {
 
                     self.ip -= 1;
 
-                    self.frames[self.ip].stack.push(return_val);
+                    if !matches!(return_val, Value::InstanceRef(_)) {
+                        self.frames[self.ip].stack.push(return_val);
+                    }
                 },
                 _ => self.run_instruction(instruction),
             };

@@ -230,6 +230,24 @@ impl Parser {
                             TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
                             TokenType::KEYWORD(Keywords::FLOAT) => TokenType::FLOAT,
                             TokenType::KEYWORD(Keywords::BOOL) => TokenType::BOOL,
+                            TokenType::IDENTIFIER => {
+                                let struct_name = val.value.iter().collect::<String>();
+                                
+                                let pos = symbols
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+                                    .map(|(index, _)| index as i32)
+                                    .unwrap_or(-1);
+                                
+                                if pos == -1 {
+                                    errors::error_message("COMPILER ERROR",
+                                    format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", struct_name, self.line));
+                                    std::process::exit(1);
+                                }
+                        
+                                TokenType::STRUCT(pos as usize)
+                            },
                             _ => TokenType::NULL,
                         }                        
                     },
@@ -1108,6 +1126,26 @@ impl Compiler {
                 
                     return
                 }
+             
+                let len = self.parser.symbols.len();
+
+                let root_struct_pos = match self.parser.symbols[pos as usize].output_type {
+                    TokenType::STRUCT(val) => {
+                        let struct_name = self.parser.symbols[val].name.clone();
+                        self.get_struct_symbol_pos(struct_name)
+                    },
+                    _ => {
+                        errors::error_message("COMPILER ERROR",
+                        format!("Unexpected error: find {:?} as output in instances section {}:", 
+                            value, 
+                            self.parser.line
+                        ));
+                        std::process::exit(1);
+                    },
+                };
+                
+                self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
+                self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
                 
                 return
 
@@ -1452,6 +1490,9 @@ impl Compiler {
                 TokenType::STRING => {
                     self.get_cur_chunk().push_value(Value::String(String::new()));
                 },
+                TokenType::STRUCT(val) => {
+                    self.get_cur_chunk().push_value(Value::InstanceRef(val));  
+                },
                 output_type => {
                     errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
                     std::process::exit(1);
@@ -1561,6 +1602,12 @@ impl Compiler {
             }
         };
 
+        let fn_pos = self.get_fn_symbol_pos(function.name.clone());
+        if function.output_type != self.parser.symbols[fn_pos].output_type {
+            println!("{:?} {:?}", function.output_type,self.parser.symbols[fn_pos].symbol_type);
+            panic!()
+        }
+
         self.parser.consume(TokenType::LEFT_BRACE);
 
         self.scope_depth += 1;
@@ -1627,6 +1674,9 @@ impl Compiler {
                 self.get_cur_locals()[index].local_type
             },
             OpCode::GET_INSTANCE_RF(index) => {
+                self.emit_byte(OpCode::INC_RC(index), self.parser.line);
+                self.emit_byte(OpCode::GET_INSTANCE_RF(index), self.parser.line);
+                self.emit_byte(OpCode::POP, self.parser.line);
                 self.get_cur_chunk().get_last_value().convert()
             }
             _ => {
