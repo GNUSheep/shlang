@@ -143,6 +143,10 @@ impl std::fmt::Display for Value {
             Value::String(val) => write!(output, "{}", val),
             Value::ListObj(val) => write!(output, "{:?}", val),
             Value::Null => write!(output, "null"),
+            Value::InstanceRef(_) => {
+                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"Struct Object\" to stdout is not allowed"));
+                std::process::exit(1);
+            },
             v => {
                 errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
                 std::process::exit(1);

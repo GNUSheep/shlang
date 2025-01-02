@@ -769,7 +769,7 @@ impl Compiler {
     pub fn var_call(&mut self) {
         let var_name = self.parser.prev.value.iter().collect::<String>();
 
-        let pos = self.get_cur_instances()
+        let mut pos = self.get_cur_instances()
             .iter()
             .enumerate()
             .rev()
@@ -1052,7 +1052,7 @@ impl Compiler {
         }
     }
 
-    pub fn instance_declare(&mut self, pos: usize, name: String) {
+    pub fn instance_declare(&mut self, var_pos: usize, name: String) {
         if self.parser.prev.value.iter().collect::<String>() == "List" {
             self.parser.consume(TokenType::LESS);
             self.list_dec(name);
@@ -1107,8 +1107,27 @@ impl Compiler {
                 .unwrap_or(-1);
 
             if pos != -1 {
+                let root_struct_pos = match self.parser.symbols[pos as usize].output_type {
+                    TokenType::STRUCT(root_pos) => root_pos,
+                    TokenType::STRING => self.get_struct_symbol_pos("String".to_string()),
+                    _ => {
+                        println!("CHECK THIS TYPE OF ERRORS line 1119 in compiler.rs {:?}", self.parser.symbols[pos as usize]);
+                        std::process::exit(1);                            
+                    }
+                };
+                
                 self.symbol_to_hold = pos as usize;
                 self.parser.consume(TokenType::LEFT_PAREN);
+
+                if root_struct_pos != var_pos {
+                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                        self.parser.symbols[var_pos as usize].output_type,
+                        self.parser.symbols[root_struct_pos].name,
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
+                }
+                
                 self.fn_call();
                 
                 if value == "input" {
@@ -1163,7 +1182,7 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
         let mut field_counts = 0;
 
-        let root_struct_name = self.parser.symbols[pos].name.clone();
+        let root_struct_name = self.parser.symbols[var_pos].name.clone();
         while self.parser.cur.token_type != TokenType::RIGHT_BRACE {
             self.expression();
 
@@ -1186,11 +1205,11 @@ impl Compiler {
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
 
-        let mut instance_obj = StructInstance::new(pos);
+        let mut instance_obj = StructInstance::new(var_pos);
 
-        if field_counts != self.parser.symbols[pos].arg_count {
+        if field_counts != self.parser.symbols[var_pos].arg_count {
             errors::error_message("COMPILER ERROR",
-            format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[pos].arg_count, field_counts, self.parser.line));
+            format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[var_pos].arg_count, field_counts, self.parser.line));
             std::process::exit(1);
         }
         let len = self.parser.symbols.len();
@@ -1198,9 +1217,9 @@ impl Compiler {
 
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj, field_counts), self.parser.line);
 
-        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
+        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
 
-        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
+        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 })
     }
 
     pub fn struct_declare(&mut self) {
@@ -1582,6 +1601,12 @@ impl Compiler {
         match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => {
                 function.output_type = keyword.convert();
+
+                if !is_mth {                
+                    let pos = self.get_fn_symbol_pos(name.clone());
+                    self.parser.symbols[pos].output_type = function.output_type;
+                }
+                        
                 self.parser.consume(TokenType::KEYWORD(keyword))
             },
             TokenType::IDENTIFIER => {
@@ -1601,11 +1626,14 @@ impl Compiler {
                 function.output_type = TokenType::NULL;
             }
         };
-
-        let fn_pos = self.get_fn_symbol_pos(function.name.clone());
-        if function.output_type != self.parser.symbols[fn_pos].output_type {
-            println!("{:?} {:?}", function.output_type,self.parser.symbols[fn_pos].symbol_type);
-            panic!()
+        
+        if !is_mth {
+            // This if stmt is left, because of tests on reference counting, it should never panic
+            let fn_pos = self.get_fn_symbol_pos(function.name.clone());
+            if function.output_type != self.parser.symbols[fn_pos].output_type {
+                println!("{:?} {:?}", function.output_type,self.parser.symbols[fn_pos].symbol_type);
+                panic!()
+            }
         }
 
         self.parser.consume(TokenType::LEFT_BRACE);

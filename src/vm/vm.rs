@@ -185,6 +185,7 @@ impl VM {
                 
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
+                println!("{:?}", offset+pos)
             },
 
             OpCode::GET_LIST_FIELD(pos) => {
