@@ -150,6 +150,7 @@ impl VM {
                     },
                     _ => {},
                 };
+                println!("{:?}", instance_fields[field_pos]);
                 self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {

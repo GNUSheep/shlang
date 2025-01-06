@@ -225,11 +225,11 @@ impl Parser {
                 let out_type = match iter.next() {
                     Some(val) => {
                         if val.token_type == TokenType::EOF { break 'l };
-
                         match val.token_type {
                             TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
                             TokenType::KEYWORD(Keywords::FLOAT) => TokenType::FLOAT,
                             TokenType::KEYWORD(Keywords::BOOL) => TokenType::BOOL,
+                            TokenType::KEYWORD(Keywords::STRING) => TokenType::STRING,
                             TokenType::IDENTIFIER => {
                                 let struct_name = val.value.iter().collect::<String>();
                                 
@@ -784,7 +784,13 @@ impl Compiler {
                     
                     if self.get_cur_instances()[pos as usize].is_special == SpecialType::String && !self.changing_fn {
                         self.get_cur_chunk().push_value(Value::String(String::new()));
-                        self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos as usize, 0), self.parser.line);
+
+                        let mut root_string_pos = pos as usize;
+                        if self.get_cur_instances()[pos as usize].is_redirected {
+                            root_string_pos = self.get_cur_instances()[pos as usize].redirect_pos;
+                        }
+                                                
+                        self.emit_byte(OpCode::GET_INSTANCE_FIELD(root_string_pos, 0), self.parser.line);
                     }else if matches!(self.get_cur_instances()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
                         if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
                             self.get_cur_chunk().push_value(Value::List);
@@ -836,6 +842,9 @@ impl Compiler {
                         let rf_index = self.get_cur_instances()[pos as usize].rf_index;
                         self.emit_byte(OpCode::PUSH_STACK(Value::InstanceRef(rf_index)), self.parser.line);
                     } else {
+                        if self.get_cur_instances()[pos as usize].is_redirected {
+                            pos = self.get_cur_instances()[pos as usize].redirect_pos as i32;
+                        }
                         self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
                     }
 
@@ -1107,11 +1116,11 @@ impl Compiler {
                 .unwrap_or(-1);
 
             if pos != -1 {
-                let root_struct_pos = match self.parser.symbols[pos as usize].output_type {
+                let mut root_struct_pos = match self.parser.symbols[pos as usize].output_type {
                     TokenType::STRUCT(root_pos) => root_pos,
                     TokenType::STRING => self.get_struct_symbol_pos("String".to_string()),
                     _ => {
-                        println!("CHECK THIS TYPE OF ERRORS line 1119 in compiler.rs {:?}", self.parser.symbols[pos as usize]);
+                        println!("CHECK THIS TYPE OF ERRORS line 1117 in compiler.rs {:?}", self.parser.symbols[pos as usize]);
                         std::process::exit(1);                            
                     }
                 };
@@ -1129,8 +1138,7 @@ impl Compiler {
                 }
                 
                 self.fn_call();
-                
-                if value == "input" {
+                if value == "input" || self.parser.symbols[pos as usize].output_type == TokenType::STRING {
                     let pos = self.get_struct_symbol_pos("String".to_string());
                     let mut instance_obj = StructInstance::new(pos);
 
@@ -1145,10 +1153,9 @@ impl Compiler {
                 
                     return
                 }
-             
-                let len = self.parser.symbols.len();
 
-                let root_struct_pos = match self.parser.symbols[pos as usize].output_type {
+                let len = self.parser.symbols.len();
+                root_struct_pos = match self.parser.symbols[pos as usize].output_type {
                     TokenType::STRUCT(val) => {
                         let struct_name = self.parser.symbols[val].name.clone();
                         self.get_struct_symbol_pos(struct_name)
@@ -1174,8 +1181,9 @@ impl Compiler {
 
             let local_type = self.get_cur_instances()[pos].local_type;
             let local_rf_pos = self.get_cur_instances()[pos].rf_index;
+            let is_special = self.get_cur_instances()[pos].is_special.clone();
 
-            self.get_cur_instances().push(Local{ name: name, local_type: local_type, is_redirected: true, redirect_pos: pos, rf_index: local_rf_pos, is_special: SpecialType::Null });
+            self.get_cur_instances().push(Local{ name: name, local_type: local_type, is_redirected: true, redirect_pos: pos, rf_index: local_rf_pos, is_special: is_special });
 
             return
         }
