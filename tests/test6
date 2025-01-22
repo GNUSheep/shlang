@@ -1,0 +1,12 @@
+fn main() {
+    var x: String = "Paw paw"
+
+    var p: String = x
+
+    println(p)
+
+    p = "rak"
+
+    println(p)
+    println(x)
+}

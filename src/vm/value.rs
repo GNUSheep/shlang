@@ -68,7 +68,6 @@ impl Value {
         match self {
             Value::Fn(val) => return *val,
             val => {
-                println!("Value: {:?}", val);
                 errors::conversion_error(&format!("Enum Value<{:?}>", self), "fn");
                 std::process::exit(1);
             },

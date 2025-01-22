@@ -676,7 +676,7 @@ impl Compiler {
         
         let len = self.parser.symbols.len();
         list_obj.set_index(len);
-        println!("{:?}", len);
+
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
         let list_type_value = match list_type {
@@ -736,7 +736,24 @@ impl Compiler {
             .unwrap_or(-1);
 
         if pos != -1 && self.get_cur_instances()[pos as usize].is_special == SpecialType::String {
-            self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, 0), self.parser.line);
+            if self.get_cur_instances()[pos as usize].is_redirected {
+                
+                let pos_struct = self.get_struct_symbol_pos("String".to_string());
+                let mut instance_obj = StructInstance::new(pos_struct);
+
+                let len = self.parser.symbols.len();
+                instance_obj.set_index(len);
+                self.get_cur_instances()[pos as usize].rf_index = len;
+                self.get_cur_instances()[pos as usize].is_redirected = false;
+                self.get_cur_instances()[pos as usize].redirect_pos = 0;
+        
+                self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos_struct)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+
+                self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
+                self.get_cur_chunk().push_value(Value::String(String::new()));
+            }else {
+                self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, 0), self.parser.line);
+            }
 
             if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
                 errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
