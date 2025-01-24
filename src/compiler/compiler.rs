@@ -621,6 +621,8 @@ impl Compiler {
     }
 
     pub fn list_dec(&mut self, name: String) {
+        let list_type_token = self.parser.cur.clone();
+
         let list_type = match self.parser.cur.token_type {
             TokenType::KEYWORD(keyword) => keyword.convert(),
             TokenType::IDENTIFIER => {
@@ -679,21 +681,7 @@ impl Compiler {
 
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
-        let list_type_value = match list_type {
-            TokenType::INT => Value::Int(0),
-            TokenType::FLOAT => Value::Float(0.0),
-            TokenType::STRING => Value::String(String::new()),
-            TokenType::BOOL =>  Value::Bool(false),
-            TokenType::STRUCT(val) => Value::InstanceRef(val),
-            _ => {
-                errors::error_message("COMPILER ERROR",
-                format!("List of {:?} is not implemented yet {}:", 
-                    list_type, 
-                    self.parser.line
-                ));
-                std::process::exit(1);
-            }
-        };
+        let list_type_value = self.get_list_type_value(list_type_token);
 
         self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::List(list_type_value) });
 
@@ -806,7 +794,7 @@ impl Compiler {
                         if self.get_cur_instances()[pos as usize].is_redirected {
                             root_string_pos = self.get_cur_instances()[pos as usize].redirect_pos;
                         }
-                                                
+
                         self.emit_byte(OpCode::GET_INSTANCE_FIELD(root_string_pos, 0), self.parser.line);
                     }else if matches!(self.get_cur_instances()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
                         if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
@@ -852,7 +840,7 @@ impl Compiler {
                             }
                             
                             self.emit_byte(OpCode::GET_LIST_FIELD(pos as usize), self.parser.line);
-                            
+
                             self.get_cur_chunk().push_value(list_type);
                         }
                     } else if self.declaring_list {
@@ -862,7 +850,10 @@ impl Compiler {
                         if self.get_cur_instances()[pos as usize].is_redirected {
                             pos = self.get_cur_instances()[pos as usize].redirect_pos as i32;
                         }
+                        let instance_type = self.get_cur_instances()[pos as usize].local_type;
+
                         self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
+                        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: instance_type, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
                     }
 
                     if self.changing_fn {
@@ -1399,7 +1390,7 @@ impl Compiler {
         pos as usize
     }
     
-    pub fn get_struct_symbol_pos(&mut self, struct_name: String) -> usize {
+    pub fn get_struct_symbol_pos(&self, struct_name: String) -> usize {
         let pos = self.parser.symbols
             .iter()
             .enumerate()
@@ -1456,6 +1447,34 @@ impl Compiler {
         }
 
         pos as usize
+    }
+
+    pub fn get_list_type_value(&self, list_token: Token) -> Value {
+        let list_type_token = match list_token.token_type {
+            TokenType::KEYWORD(keyword) => keyword.convert(),
+            TokenType::IDENTIFIER => {
+                let pos = self.get_struct_symbol_pos(list_token.value.iter().collect::<String>());
+
+                TokenType::STRUCT(pos)
+            },
+            _ => list_token.token_type,
+        };
+   
+        return match list_type_token {
+            TokenType::INT => Value::Int(0),
+            TokenType::FLOAT => Value::Float(0.0),
+            TokenType::STRING => Value::String(String::new()),
+            TokenType::BOOL =>  Value::Bool(false),
+            TokenType::STRUCT(val) => Value::InstanceRef(val),
+            _ => {
+                errors::error_message("COMPILER ERROR",
+                format!("List of {:?} is not implemented yet {}:", 
+                    list_token.token_type, 
+                    self.parser.line
+                ));
+                std::process::exit(1);
+            }
+        };
     }
 
     pub fn fn_call(&mut self) {
@@ -1598,14 +1617,19 @@ impl Compiler {
             };
             self.parser.advance();
 
-            if self.parser.cur.token_type == TokenType::COMMA {
-                self.parser.consume(TokenType::COMMA);
-            }
-
             match arg_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
                     if self.parser.symbols[pos].name == "String" {
                         function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                    }else if self.parser.symbols[pos].name == "List" {
+                        self.parser.consume(TokenType::LESS);
+                        
+                        let list_type_value = self.get_list_type_value(self.parser.cur.clone());
+                        self.parser.advance();
+
+                        self.parser.consume(TokenType::GREATER);
+                        
+                        function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::List(list_type_value) });
                     }else {
                         function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
                     }
@@ -1615,6 +1639,9 @@ impl Compiler {
                 },
             };
 
+            if self.parser.cur.token_type == TokenType::COMMA {
+                self.parser.consume(TokenType::COMMA);
+            }
         }
         self.parser.consume(TokenType::RIGHT_PAREN);
 
@@ -1660,7 +1687,6 @@ impl Compiler {
                 panic!()
             }
         }
-
         self.parser.consume(TokenType::LEFT_BRACE);
 
         self.scope_depth += 1;

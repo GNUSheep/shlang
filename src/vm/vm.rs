@@ -79,6 +79,7 @@ impl VM {
 
     pub fn run(&mut self) {
         self.frames[self.ip].offset = self.rc.heap.len();
+        let mut a = 0;
         loop {
             let instruction = self.get_instruction().clone();
             match instruction.op {
@@ -109,13 +110,20 @@ impl VM {
                         self.frames[self.ip].stack.push(return_val);
                     }
                 },
-                _ => self.run_instruction(instruction),
+                _ => {
+                    if a > 3 {        
+                        // println!("{:?}", self.rc.get_object(36).get_values());
+                    } 
+                    self.run_instruction(instruction);
+                },
             };
+            a += 1
         }
         self.rc.remove_all();
     }
 
     fn run_instruction(&mut self, instruction: Instruction) {
+        println!("{:?}", instruction);
         match instruction.op { 
             OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) | OpCode::CONSTANT_BOOL(index)  | OpCode::CONSTANT_NULL(index) => {
                 let frame = &mut self.frames[self.ip];
@@ -154,10 +162,16 @@ impl VM {
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
                 let len = self.frames[self.ip].stack.len() - 1;
-                let value = self.frames[self.ip].stack[len].clone();
+                let value = match self.frames[self.ip].stack[len].clone() {
+                    Value::StringRef(pos) => {
+                        self.rc.get_object(pos).get_values()[0].clone()
+                    }
+                    v => v,
+                };
 
                 match self.rc.get_object(self.frames[self.ip].offset + pos).get_values()[0] {
                     Value::InstanceRef(index) | Value::StringRef(index) => {
+                        // println!("{:?}", self.rc.get_object(index).get_values());
                         self.rc.get_object(index).set_value(field_pos, value);
                         return
                     },
@@ -210,12 +224,19 @@ impl VM {
                         format!("VM - List index out of range  {}/{} {}:", field_pos, list_fields.len(), instruction.line));
                     std::process::exit(1);
                 };
+
+                match list_fields[field_pos] {
+                    Value::InstanceRef(pos) => {
+                        self.frames[self.ip].stack.push(self.rc.get_object(pos).get_values()[0].clone())
+                    },
+                    _ => {
+                        self.frames[self.ip].stack.push(list_fields[field_pos].clone());
+                    }
+                }
                 
-                self.frames[self.ip].stack.push(list_fields[field_pos].clone());
             },
             OpCode::GET_LIST(pos) => {
                 let list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-
                 let mut list_fields_unwrap = vec![];
                 for field in list_fields {
                     match field {
@@ -382,6 +403,7 @@ impl VM {
 
             OpCode::DEC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;
+                // println!("{:?}", self.rc.get_object(35).get_values());
                 while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
                     matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
                 {
@@ -402,6 +424,7 @@ impl VM {
             },
             OpCode::INC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;
+                // println!("{:?}", offset);
                 while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
                     matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
                 {

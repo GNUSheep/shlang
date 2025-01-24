@@ -47,6 +47,7 @@ impl ReferenceCounter {
 
     pub fn dec_counter(&mut self, index: usize) {
         let obj = self.get_object(index);
+       
         obj.dec_counter();
     }
 
