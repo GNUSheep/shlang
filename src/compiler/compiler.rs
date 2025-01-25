@@ -713,8 +713,6 @@ impl Compiler {
         let var_name = self.parser.prev.value.iter().collect::<String>();
         self.parser.consume(TokenType::EQ);
 
-        self.expression();
-
         let pos = self.get_cur_instances()
             .iter()
             .enumerate()
@@ -754,6 +752,45 @@ impl Compiler {
 
             return;
         }
+
+        if pos != -1 {
+            let value_identifier = self.parser.cur.value.iter().collect::<String>();               
+        
+            let value_pos = self.get_cur_instances()
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(_, local)| local.name == value_identifier)
+                .map(|(index, _)| index as i32)
+                .unwrap_or(-1);
+
+            if value_pos != -1 {
+                let var_type = self.get_cur_instances()[pos as usize].local_type;
+                let value_type = self.get_cur_instances()[pos as usize].local_type;
+
+                if var_type != value_type {
+                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                        var_type,
+                        value_type,
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
+                }
+                
+                self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
+                self.emit_byte(OpCode::INC_RC(value_pos as usize), self.parser.line);
+
+                let rf_index = self.get_cur_instances()[value_pos as usize].rf_index;
+                
+                self.get_cur_instances()[pos as usize].rf_index = rf_index;
+                self.get_cur_instances()[pos as usize].is_redirected = true;
+                self.get_cur_instances()[pos as usize].redirect_pos = value_pos as usize;
+            }
+             
+            return;
+        }
+
+        self.expression();
 
         let pos = self.get_local_pos(var_name);
 
@@ -1177,7 +1214,7 @@ impl Compiler {
                         std::process::exit(1);
                     },
                 };
-                
+
                 self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
                 self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
                 
@@ -1191,8 +1228,10 @@ impl Compiler {
             let local_rf_pos = self.get_cur_instances()[pos].rf_index;
             let is_special = self.get_cur_instances()[pos].is_special.clone();
 
-            self.get_cur_instances().push(Local{ name: name, local_type: local_type, is_redirected: true, redirect_pos: pos, rf_index: local_rf_pos, is_special: is_special });
-
+            self.get_cur_instances().push(Local{ name: name.clone(), local_type: local_type, is_redirected: true, redirect_pos: pos, rf_index: local_rf_pos, is_special: is_special });
+            self.parser.symbols.push(Symbol { name: name, symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+            self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
+                
             return
         }
         self.parser.consume(TokenType::LEFT_BRACE);
