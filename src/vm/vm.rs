@@ -94,7 +94,7 @@ impl VM {
                     let mut instr = self.get_instruction().clone();
 
                     while instr.op != OpCode::END_OF_FN {
-                        if matches!(instr.op, OpCode::DEC_RC(_)) || matches!(instr.op, OpCode::POP) {
+                        if matches!(instr.op, OpCode::DEC_RC(_, _)) || matches!(instr.op, OpCode::POP) {
                             self.run_instruction(instr);
                         }
                         
@@ -149,7 +149,7 @@ impl VM {
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-
+                println!("{:?} {:?}", pos+self.frames[self.ip].offset, instance_fields);
                 match instance_fields[0] {
                     Value::InstanceRef(index) | Value::StringRef(index)  => {
                         let fields = self.rc.get_object(index).get_values();
@@ -196,7 +196,7 @@ impl VM {
             OpCode::GET_INSTANCE_RF(pos) => {
                 // need to find if other method with using it, would be better
                 let offset = self.frames[self.ip].offset;
-                
+                println!("RF {:?}", self.rc.get_object(offset + pos).get_values());
                 self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
             },
@@ -401,15 +401,19 @@ impl VM {
                 self.frames[self.ip].stack.pop();
             },
 
-            OpCode::DEC_RC(pos) => {
+            OpCode::DEC_RC(pos, to_root) => {
                 let mut offset = self.frames[self.ip].offset+pos;
-                // println!("{:?}", self.rc.get_object(35).get_values());
+
+                if !to_root {
+                    self.rc.dec_counter(offset);
+                    return 
+                }
+
                 while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
                     matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
                 {
                     match self.rc.get_object(offset).get_values()[0] {
                         Value::InstanceRef(pos) | Value::StringRef(pos) => {
-                            self.rc.dec_counter(offset);
                             offset = pos;
                         }
                         _ => {},
@@ -424,7 +428,7 @@ impl VM {
             },
             OpCode::INC_RC(pos) => {
                 let mut offset = self.frames[self.ip].offset+pos;
-                // println!("{:?}", offset);
+
                 while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
                     matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
                 {

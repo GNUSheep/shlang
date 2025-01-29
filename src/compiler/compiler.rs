@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn, SpecialType}, lists::ListObj, rc::Object, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    objects::{functions::{Function, Local, NativeFn, SpecialType}, lists::ListObj, rc::Object, string::StringObj, structs::{Struct, StructInstance}}, std::print::println, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -777,9 +777,6 @@ impl Compiler {
                     std::process::exit(1);
                 }
                 
-                self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
-                self.emit_byte(OpCode::INC_RC(value_pos as usize), self.parser.line);
-
                 let rf_index = self.get_cur_instances()[value_pos as usize].rf_index;
                 
                 self.get_cur_instances()[pos as usize].rf_index = rf_index;
@@ -1231,7 +1228,9 @@ impl Compiler {
             self.get_cur_instances().push(Local{ name: name.clone(), local_type: local_type, is_redirected: true, redirect_pos: pos, rf_index: local_rf_pos, is_special: is_special });
             self.parser.symbols.push(Symbol { name: name, symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
-                
+            self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
+             
             return
         }
         self.parser.consume(TokenType::LEFT_BRACE);
@@ -1743,7 +1742,7 @@ impl Compiler {
         for index in 0..self.get_cur_instances().len() {
             match self.get_cur_instances()[index].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_RC(index), self.parser.line);
+                    self.emit_byte(OpCode::DEC_RC(index, false), self.parser.line);
                 },
                 _ => {},
             }

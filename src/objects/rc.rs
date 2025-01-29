@@ -25,6 +25,14 @@ impl ReferenceCounter {
     }
 
     pub fn push(&mut self, object: Box<dyn Object>) {
+        for i in 0..self.heap.len() {
+            if self.heap[i].get_values()[0] == Value::EmptyObj {
+                self.heap[i] = object;
+                self.heap.push(Box::new(RefObject{ref_index: i as usize, rc_counter: 1, index: 0}));
+                return
+            }
+        }
+
         self.heap.push(object);
     }
 
@@ -54,13 +62,41 @@ impl ReferenceCounter {
     pub fn remove(&mut self) {
         for i in (0..self.heap.len()).rev() {
             if self.get_object(i).get_rc_counter() == 0 {
-                self.heap.remove(i);
+                self.heap[i] = Box::new(EmptyObject{});
             }
         }
     }
 
     pub fn remove_all(&mut self) {
         self.heap = vec![];
+    }
+}
+
+pub struct EmptyObject {}
+
+impl Object for EmptyObject {
+    fn inc_counter(&mut self) {}
+    
+    fn dec_counter(&mut self) {}
+
+    fn get_rc_counter(&self) -> usize {
+        0
+    }
+
+    fn set_index(&mut self, _index: usize) {}
+
+    fn get_index(&self) -> usize {
+        0
+    }
+
+    fn get_values(&self) -> Vec<Value> {
+        vec![Value::EmptyObj]
+    }
+
+    fn set_value(&mut self, _pos: usize, _value: Value) {}
+
+    fn get_arg_count(&self) -> usize {
+        0
     }
 }
 

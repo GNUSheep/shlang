@@ -21,6 +21,7 @@ pub enum Value {
     InstanceRef(usize),
     StringRef(usize),
     Fn(fn(Vec<Value>) -> Value),
+    EmptyObj,
 }
 
 impl Value {
@@ -67,7 +68,7 @@ impl Value {
     pub fn get_fn(&self) -> fn(Vec<Value>) -> Value {
         match self {
             Value::Fn(val) => return *val,
-            val => {
+            _val => {
                 errors::conversion_error(&format!("Enum Value<{:?}>", self), "fn");
                 std::process::exit(1);
             },

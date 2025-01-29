@@ -95,7 +95,7 @@ impl StringMethods {
 
         function.chunk.push(Instruction { op: OpCode::CONSTANT_NULL(1), line: 1});
         function.chunk.push(Instruction { op: OpCode::RETURN, line: 1});
-        function.chunk.push(Instruction { op: OpCode::DEC_RC(0), line: 1});
+        function.chunk.push(Instruction { op: OpCode::DEC_RC(0, true), line: 1});
         function.chunk.push(Instruction { op: OpCode::END_OF_FN, line: 1});
 
         function
