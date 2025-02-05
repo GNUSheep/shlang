@@ -78,8 +78,8 @@ impl VM {
     }
 
     pub fn run(&mut self) {
+        // remove offset
         self.frames[self.ip].offset = self.rc.heap.len();
-        let mut a = 0;
         loop {
             let instruction = self.get_instruction().clone();
             match instruction.op {
@@ -90,11 +90,11 @@ impl VM {
                     }
 
                     let return_val = self.frames[self.ip].stack.pop().unwrap();
-                    
+                
                     let mut instr = self.get_instruction().clone();
 
                     while instr.op != OpCode::END_OF_FN {
-                        if matches!(instr.op, OpCode::DEC_RC(_, _)) || matches!(instr.op, OpCode::POP) {
+                        if matches!(instr.op, OpCode::DEC_RC(_)) || matches!(instr.op, OpCode::POP) {
                             self.run_instruction(instr);
                         }
                         
@@ -106,29 +106,22 @@ impl VM {
 
                     self.ip -= 1;
 
-                    if !matches!(return_val, Value::InstanceRef(_)) {
-                        self.frames[self.ip].stack.push(return_val);
-                    }
+                    self.frames[self.ip].stack.push(return_val);
                 },
                 _ => {
-                    if a > 3 {        
-                        // println!("{:?}", self.rc.get_object(36).get_values());
-                    } 
                     self.run_instruction(instruction);
                 },
             };
-            a += 1
         }
         self.rc.remove_all();
     }
 
     fn run_instruction(&mut self, instruction: Instruction) {
         println!("{:?}", instruction);
-        match instruction.op { 
+        match instruction.op {
             OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) | OpCode::CONSTANT_BOOL(index)  | OpCode::CONSTANT_NULL(index) => {
                 let frame = &mut self.frames[self.ip];
                 frame.stack.push(frame.chunk.get_value(index));
-    
             },
 
             OpCode::STRING_DEC(instance) => {
@@ -144,41 +137,34 @@ impl VM {
                     instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap())
                 }
                 instance.fields_values.reverse();
-                
+
+                // Make it look for empty spaces
+                let heap_pos = self.rc.heap.len();
                 self.rc.push(Box::new(instance));
+                self.frames[self.ip].stack.push(Value::InstanceRef(heap_pos));
+                println!("{:?} {:?}", self.frames[self.ip].stack, self.ip);
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
-                let instance_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-                println!("{:?} {:?}", pos+self.frames[self.ip].offset, instance_fields);
-                match instance_fields[0] {
-                    Value::InstanceRef(index) | Value::StringRef(index)  => {
-                        let fields = self.rc.get_object(index).get_values();
-                        self.frames[self.ip].stack.push(fields[field_pos].clone());
-                        return
-                    },
-                    _ => {},
+                let instance_obj = match self.frames[self.ip].stack[pos] {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here"),
                 };
-                self.frames[self.ip].stack.push(instance_fields[field_pos].clone());
+
+                let field_value = instance_obj.get_values()[field_pos].clone();
+                self.frames[self.ip].stack.push(field_value);
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
                 let len = self.frames[self.ip].stack.len() - 1;
-                let value = match self.frames[self.ip].stack[len].clone() {
-                    Value::StringRef(pos) => {
-                        self.rc.get_object(pos).get_values()[0].clone()
+                let value = self.frames[self.ip].stack[len].clone();
+
+                match self.frames[self.ip].stack[pos] {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos).set_value(field_pos, value);
                     }
-                    v => v,
-                };
-
-                match self.rc.get_object(self.frames[self.ip].offset + pos).get_values()[0] {
-                    Value::InstanceRef(index) | Value::StringRef(index) => {
-                        // println!("{:?}", self.rc.get_object(index).get_values());
-                        self.rc.get_object(index).set_value(field_pos, value);
-                        return
-                    },
-                    _ => {},
-                };
-
-                self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
+                    _ => panic!("Error, this type of value shoudnt be here"),
+                };                
             },
             OpCode::GET_INSTANCE_W_OFFSET_RF(index) => {
                 let mut offset = self.frames[self.ip].offset + index;
@@ -194,13 +180,10 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset));
             },
             OpCode::GET_INSTANCE_RF(pos) => {
-                // need to find if other method with using it, would be better
-                let offset = self.frames[self.ip].offset;
-                println!("RF {:?}", self.rc.get_object(offset + pos).get_values());
-                self.rc.push(Box::new(RefObject { ref_index: offset+pos, rc_counter: 1, index: 0}));
-                self.frames[self.ip].stack.push(Value::InstanceRef(offset+pos));
+                let instance_rf = self.frames[self.ip].stack[pos].clone();
+                self.frames[self.ip].stack.push(instance_rf);
             },
-
+ 
             OpCode::GET_LIST_FIELD(pos) => {
                 let list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
 
@@ -306,19 +289,14 @@ impl VM {
                 let chunk = self.rc.get_object(index).get_values()[0].clone();
 
                 let mut stack: Vec<Value> = vec![];
-                let mut instance_rf_count = 0;
 
                 for _ in 0..self.rc.get_object(index).get_arg_count() {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
-                        instance_rf_count += 1;
-                    } else {
-                        stack.push(value);
-                    }
+                    stack.push(value);
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
+                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: 0 });
                 
                 self.ip += 1;
             },
@@ -401,25 +379,14 @@ impl VM {
                 self.frames[self.ip].stack.pop();
             },
 
-            OpCode::DEC_RC(pos, to_root) => {
-                let mut offset = self.frames[self.ip].offset+pos;
-
-                if !to_root {
-                    self.rc.dec_counter(offset);
-                    return 
-                }
-
-                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
-                    matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
-                {
-                    match self.rc.get_object(offset).get_values()[0] {
-                        Value::InstanceRef(pos) | Value::StringRef(pos) => {
-                            offset = pos;
-                        }
-                        _ => {},
+            OpCode::DEC_RC(pos) => {
+                println!("{:?} {:?}", self.frames[self.ip].stack, self.ip);
+                match self.frames[self.ip].stack[pos] {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.dec_counter(heap_pos);
                     }
-                }
-                self.rc.dec_counter(offset);
+                    _ => panic!("Error, this type of value shoudnt be here DEC RC"),
+                };
             },
             OpCode::DEC_TO(index) => {
                 for i in (self.frames[self.ip].offset+index..self.rc.heap.len()).rev() {
@@ -427,19 +394,12 @@ impl VM {
                 }
             },
             OpCode::INC_RC(pos) => {
-                let mut offset = self.frames[self.ip].offset+pos;
-
-                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) ||
-                    matches!(self.rc.get_object(offset).get_values()[0], Value::StringRef(_))
-                {
-                    match self.rc.get_object(offset).get_values()[0] {
-                        Value::InstanceRef(pos) | Value::StringRef(pos) => {
-                            offset = pos;
-                        }
-                        _ => {},
+                match self.frames[self.ip].stack[pos] {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.inc_counter(heap_pos);
                     }
-                }
-                self.rc.inc_counter(offset);
+                    _ => panic!("Error, this type of value shoudnt be here INC RC"),
+                };        
             },
             OpCode::PUSH_STACK(val) => {
                 self.frames[self.ip].stack.push(val);

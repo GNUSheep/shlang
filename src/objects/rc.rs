@@ -25,14 +25,6 @@ impl ReferenceCounter {
     }
 
     pub fn push(&mut self, object: Box<dyn Object>) {
-        for i in 0..self.heap.len() {
-            if self.heap[i].get_values()[0] == Value::EmptyObj {
-                self.heap[i] = object;
-                self.heap.push(Box::new(RefObject{ref_index: i as usize, rc_counter: 1, index: 0}));
-                return
-            }
-        }
-
         self.heap.push(object);
     }
 
