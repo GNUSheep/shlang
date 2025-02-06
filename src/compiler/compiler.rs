@@ -1059,7 +1059,6 @@ impl Compiler {
                 },
                 _ => {},
             }
-
             return
         }
 
@@ -1336,17 +1335,10 @@ impl Compiler {
     pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, instance_name: String, is_self: bool) {
         self.parser.consume(TokenType::LEFT_PAREN);
         if is_self {
-            let pos = self.get_instance_local_pos(instance_name);
-
-            let heap_pos = self.get_cur_instances()[pos].rf_index;
+            let pos = self.get_local_pos(instance_name);
 
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
-            if heap_pos == 0 {
-                self.emit_byte(OpCode::POP, self.parser.line);
-                self.emit_byte(OpCode::GET_INSTANCE_W_OFFSET_RF(pos), self.parser.line);
-            }
-
-            self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
         }
 
         let mut arg_count = 0;
@@ -1659,7 +1651,7 @@ impl Compiler {
             match arg_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
                     if self.parser.symbols[pos].name == "String" {
-                        function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                        function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
                     }else if self.parser.symbols[pos].name == "List" {
                         self.parser.consume(TokenType::LESS);
                         
@@ -1668,7 +1660,7 @@ impl Compiler {
 
                         self.parser.consume(TokenType::GREATER);
                         
-                        function.instances.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::List(list_type_value) });
+                        function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::List(list_type_value) });
                     }else {
                         function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
                     }

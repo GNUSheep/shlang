@@ -267,20 +267,15 @@ impl VM {
 
             OpCode::METHOD_CALL(mth) => {
                 let mut stack: Vec<Value> = vec![];
-                let mut instance_rf_count = 0;
 
-                let adder: usize = if mth.is_self_arg { 1 }else { 0 };
+                let adder: usize = if mth.is_self_arg { 1 } else { 0 };
                 for _ in 0..mth.arg_count + adder {
                     let value = self.frames[self.ip].stack.pop().unwrap();
-                    if matches!(value, Value::InstanceRef(_)) || matches!(value, Value::StringRef(_)) {
-                        instance_rf_count += 1;
-                    }else {
-                        stack.push(value);
-                    }
+                    stack.push(value);
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: self.rc.heap.len() - instance_rf_count });
+                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: 0 });
 
                 self.ip += 1;
             }
