@@ -581,43 +581,16 @@ impl Compiler {
     }
  
     pub fn string_dec(&mut self) {
-        let is_assign = if self.parser.peek_prev().token_type == TokenType::EQ {
-            true
-        }else { false };
+        let struct_string_pos = self.get_struct_symbol_pos("String".to_string());
 
-        let pos = self.get_struct_symbol_pos("String".to_string());
-
-        let mut instance_obj = StructInstance::new(pos);
-
-        let len = self.parser.symbols.len();
-        instance_obj.set_index(len);
+        let mut instance_obj = StructInstance::new(struct_string_pos);
 
         let value = self.parser.prev.value.iter().collect::<String>();
         instance_obj.fields_values.push(Value::String(value.clone()));
 
         self.emit_byte(OpCode::STRING_DEC(instance_obj), self.parser.line);
-        self.emit_byte(OpCode::PUSH_STACK(Value::StringRef(len)), self.parser.line);
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
-
-        self.get_cur_instances().push(Local{ name: String::new(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::String });
-
-        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
-
-        if self.parser.cur.token_type == TokenType::DOT {
-            let len = self.get_cur_instances().len() - 1;
-            self.get_cur_instances()[len].name = value;
-
-            self.emit_byte(OpCode::POP, self.parser.line);
-
-            self.instance_call();
-
-            if is_assign {
-                self.emit_byte(OpCode::SET_INSTANCE_FIELD(len, 0), self.parser.line);
-            }
-
-            self.get_cur_instances()[len].name = String::new();
-        }
     }
 
     pub fn list_dec(&mut self, name: String) {
@@ -839,95 +812,70 @@ impl Compiler {
     pub fn var_call(&mut self) {
         let var_name = self.parser.prev.value.iter().collect::<String>();
 
-        let pos = self.get_cur_locals()
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, local)| local.name == var_name)
-            .map(|(index, _)| index as i32)
-            .unwrap_or(-1);
+        let pos = self.get_local_pos(var_name);
 
-        if pos != -1 {
-            match self.get_cur_locals()[pos as usize].local_type {
-                TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
-                    self.get_cur_chunk().push_value(Value::InstanceRef(root_struct_pos));
-                    
-                    if self.get_cur_locals()[pos as usize].is_special == SpecialType::String && !self.changing_fn {
-                        self.get_cur_chunk().push_value(Value::String(String::new()));
+        if self.get_cur_locals()[pos].is_special == SpecialType::String && !self.changing_fn {
+            self.get_cur_chunk().push_value(Value::String(String::new()));
 
-                        let mut root_string_pos = pos as usize;
-                        if self.get_cur_instances()[pos as usize].is_redirected {
-                            root_string_pos = self.get_cur_instances()[pos as usize].redirect_pos;
-                        }
+            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
+        }else if matches!(self.get_cur_locals()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
+            if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
+                self.get_cur_chunk().push_value(Value::List);
 
-                        self.emit_byte(OpCode::GET_INSTANCE_FIELD(root_string_pos, 0), self.parser.line);
-                    }else if matches!(self.get_cur_locals()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
-                        if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
-                            self.get_cur_chunk().push_value(Value::List);
-
-                            self.emit_byte(OpCode::GET_LIST(pos as usize), self.parser.line);
-                        }else {
-                            let list_type = match self.get_cur_instances()[pos as usize].is_special.clone() {
-                                SpecialType::List(val) => val,
-                                _ => {
-                                    errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
-                                        self.get_cur_instances()[pos as usize].is_special.clone(),
-                                        self.parser.line,
-                                    ));
-                                    std::process::exit(1);
-                                }
-                            };
-                        
-                            self.parser.consume(TokenType::LEFT_BRACKET);
-                            self.expression();
-                            self.parser.consume(TokenType::RIGHT_BRACKET);
-
-                            if self.parser.cur.token_type == TokenType::EQ {
-                                self.parser.consume(TokenType::EQ);
-
-                                self.expression();
-
-                                if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
-                                    let value_type = self.get_cur_chunk().get_last_value().convert();
-
-                                    errors::error_message("COMPILER ERROR",
-                                        format!("Expected to find {:?} but found: {:?} {}:", 
-                                        list_type.convert(), 
-                                        value_type,
-                                        self.parser.line
-                                    ));
-                                    std::process::exit(1);
-                                }
+                self.emit_byte(OpCode::GET_LIST(pos as usize), self.parser.line);
+            }else {
+                let list_type = match self.get_cur_instances()[pos as usize].is_special.clone() {
+                    SpecialType::List(val) => val,
+                    _ => {
+                        errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
+                            self.get_cur_instances()[pos as usize].is_special.clone(),
+                            self.parser.line,
+                        ));
+                        std::process::exit(1);
+                    }
+                };
             
-                                self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
-                            
-                                return
-                            }
-                            
-                            self.emit_byte(OpCode::GET_LIST_FIELD(pos as usize), self.parser.line);
+                self.parser.consume(TokenType::LEFT_BRACKET);
+                self.expression();
+                self.parser.consume(TokenType::RIGHT_BRACKET);
 
-                            self.get_cur_chunk().push_value(list_type);
-                        }
-                    } else if self.declaring_list {
-                        let rf_index = self.get_cur_instances()[pos as usize].rf_index;
-                        self.emit_byte(OpCode::PUSH_STACK(Value::InstanceRef(rf_index)), self.parser.line);
-                    } else {
-                        self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
+                if self.parser.cur.token_type == TokenType::EQ {
+                    self.parser.consume(TokenType::EQ);
+
+                    self.expression();
+
+                    if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
+                        let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                        errors::error_message("COMPILER ERROR",
+                            format!("Expected to find {:?} but found: {:?} {}:", 
+                            list_type.convert(), 
+                            value_type,
+                            self.parser.line
+                        ));
+                        std::process::exit(1);
                     }
-
-                    if self.changing_fn {
-                        self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
-                    }
-
-
+        
+                    self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
+                
                     return
-                },
-                _ => {},
+                }
+                
+                self.emit_byte(OpCode::GET_LIST_FIELD(pos as usize), self.parser.line);
+
+                self.get_cur_chunk().push_value(list_type);
             }
-            
+        } else if self.declaring_list {
+            let rf_index = self.get_cur_instances()[pos as usize].rf_index;
+            self.emit_byte(OpCode::PUSH_STACK(Value::InstanceRef(rf_index)), self.parser.line);
+        } else if matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))){
+            self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
         }
 
-        let pos = self.get_local_pos(var_name);
+        if self.changing_fn && matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
+            self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+        }
+            
         match self.get_cur_locals()[pos as usize].local_type {
             TokenType::INT => {
                 self.get_cur_chunk().push_value(Value::Int(0));
@@ -941,6 +889,7 @@ impl Compiler {
             TokenType::STRING => {
                 self.get_cur_chunk().push_value(Value::String(String::new()));
             },
+            TokenType::KEYWORD(Keywords::INSTANCE(_)) => return,
             local_type => {
                 errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.parser.line));
                 std::process::exit(1);
@@ -1138,12 +1087,8 @@ impl Compiler {
 
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
             if self.parser.cur.token_type == TokenType::STRING {
-                let pos = self.get_cur_instances().len();
+                self.expression();
                 
-                self.compile_line();
-
-                self.emit_byte(OpCode::POP, self.parser.line);
-
                 if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
                     errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                         TokenType::STRING,
@@ -1153,7 +1098,8 @@ impl Compiler {
                     std::process::exit(1);
                 }
 
-                self.get_cur_instances()[pos].name = name;
+                self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+
                 return
             }
             
@@ -1200,17 +1146,12 @@ impl Compiler {
 
                 if value == "input" || self.parser.symbols[pos as usize].output_type == TokenType::STRING {
                     let pos = self.get_struct_symbol_pos("String".to_string());
-                    let mut instance_obj = StructInstance::new(pos);
+                    let instance_obj = StructInstance::new(pos);
 
-                    let len = self.parser.symbols.len();
-                    instance_obj.set_index(len);
-
-                    self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::String });
-                    self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+                    self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
 
                     self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
-                    self.get_cur_chunk().push_value(Value::String(String::new()));
-                
+               
                     return
                 }
 
@@ -1512,7 +1453,7 @@ impl Compiler {
         let mut arg_count: usize = 0;
         self.changing_fn = true;
         
-        if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN {
+        if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN && !matches!(self.parser.symbols[self.symbol_to_hold].name.as_str(), "print" | "println" | "input")  {
             self.changing_fn = false;
         }
         
@@ -1537,14 +1478,15 @@ impl Compiler {
             self.emit_byte(OpCode::IO_FN_CALL(self.symbol_to_hold, arg_count), self.parser.line);
 
             if self.parser.symbols[self.symbol_to_hold].name == "input" {
-                self.get_cur_chunk().push_value(Value::Int(0));
+                self.get_cur_chunk().push_value(Value::String(String::new()));
             }else {
                 let pos = self.get_cur_chunk().push_value(Value::Null);
                 self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
                 
-                for _ in 0..arg_count {
-                    self.emit_byte(OpCode::POP, self.parser.line);
-                }
+            }
+            println!("{:?}", self.parser.symbols[self.symbol_to_hold]);
+            for _ in 0..arg_count {
+                self.emit_byte(OpCode::POP, self.parser.line);
             }
 
             return

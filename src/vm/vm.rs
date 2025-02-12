@@ -1,5 +1,5 @@
 use crate::{
-    objects::{rc::RefObject, string::StringMethods}, vm::{bytecode::{Chunk, Instruction, OpCode},
+    objects::string::StringMethods, vm::{bytecode::{Chunk, Instruction, OpCode},
     value::Value,
 }};
 
@@ -125,11 +125,15 @@ impl VM {
             },
 
             OpCode::STRING_DEC(instance) => {
+                let heap_pos = self.rc.heap.len();
                 self.rc.push(Box::new(instance));
+                self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
             },
             OpCode::STRING_DEC_VALUE(mut instance) => {
+                let heap_pos = self.rc.heap.len();
                 instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap());
                 self.rc.push(Box::new(instance));
+                self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
             },
 
             OpCode::INSTANCE_DEC(mut instance, field_count) => {
@@ -142,11 +146,10 @@ impl VM {
                 let heap_pos = self.rc.heap.len();
                 self.rc.push(Box::new(instance));
                 self.frames[self.ip].stack.push(Value::InstanceRef(heap_pos));
-                println!("{:?} {:?}", self.frames[self.ip].stack, self.ip);
             },
             OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
                 let instance_obj = match self.frames[self.ip].stack[pos] {
-                    Value::InstanceRef(heap_pos) => {
+                    Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
                         self.rc.get_object(heap_pos)
                     }
                     _ => panic!("Error, this type of value shoudnt be here"),
@@ -160,7 +163,7 @@ impl VM {
                 let value = self.frames[self.ip].stack[len].clone();
 
                 match self.frames[self.ip].stack[pos] {
-                    Value::InstanceRef(heap_pos) => {
+                    Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
                         self.rc.get_object(heap_pos).set_value(field_pos, value);
                     }
                     _ => panic!("Error, this type of value shoudnt be here"),
@@ -176,7 +179,6 @@ impl VM {
                         _ => {},
                     }
                 }
-                self.rc.push(Box::new(RefObject { ref_index: offset, rc_counter: 1, index: 0}));
                 self.frames[self.ip].stack.push(Value::InstanceRef(offset));
             },
             OpCode::GET_INSTANCE_RF(pos) => {
@@ -301,49 +303,71 @@ impl VM {
                 let mut stack: Vec<Value> = vec![];
                 let len = self.frames[self.ip].stack.len() - 1;
 
-                for i in 0..self.rc.get_object(index).get_arg_count() {
-                    let value = self.frames[self.ip].stack[len - i].clone();
+                let arg_count = self.rc.get_object(index).get_arg_count();
+
+                for i in 0..arg_count {
+                    let mut value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            let fields = self.rc.get_object(index).get_values();
-
-                            stack.push(fields[0].clone());
+                            value = self.rc.get_object(index).get_values()[0].clone()
                         },
-                        _ => stack.push(value),
+                        _ => {}
                     }
+                    stack.push(value)
                 }
                 stack.reverse();
-                let output = native_fn(stack);
-                if output != Value::Null {
-                    for _ in 0..self.rc.get_object(index).get_arg_count() { self.frames[self.ip].stack.pop(); }; 
 
+                let output = native_fn(stack);
+
+                for i in 0..arg_count {
+                    match self.frames[self.ip].stack[len - i].clone() {
+                        Value::InstanceRef(_) | Value::StringRef(_) => {
+                            self.run_instruction(Instruction { op: OpCode::DEC_RC(len - i), line: instruction.line });
+                        }
+                        _ => {},
+                    }
+                    self.frames[self.ip].stack.pop();
+                }
+
+                self.rc.remove();
+                
+                if output != Value::Null {
                     self.frames[self.ip].stack.push(output);
                 }
             },
             OpCode::IO_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
-
                 let mut stack: Vec<Value> = vec![];
                 let len: usize = if self.frames[self.ip].stack.len() != 0 {
                     self.frames[self.ip].stack.len() - 1
                 }else { 0 };
 
                 for i in 0..arg_count {
-                    let value = self.frames[self.ip].stack[len - i].clone();
+                    let mut value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            let pos = self.rc.find_object(index);
-                            let fields = self.rc.get_object(pos).get_values();
-                            stack.push(fields[0].clone());
+                            value = self.rc.get_object(index).get_values()[0].clone()
                         },
-                        _ => {
-                            stack.push(value);
-                        }
+                        _ => {}
                     }
+                    stack.push(value);
                 }
                 stack.reverse();
-
+                
                 let output = native_fn(stack);
+
+                // For know this is okay, but for futrue, IO functioncs need to be rewrited and done as Natvie Functions
+                for i in 0..arg_count {
+                    match self.frames[self.ip].stack[len - i].clone() {
+                        Value::InstanceRef(_) | Value::StringRef(_) => {
+                            self.run_instruction(Instruction { op: OpCode::DEC_RC(len - i), line: instruction.line });
+                        }
+                        _ => {},
+                    }
+                }
+
+                self.rc.remove();
+                
                 if output != Value::Null {
                     self.frames[self.ip].stack.pop();
                     self.frames[self.ip].stack.push(output);
@@ -375,9 +399,8 @@ impl VM {
             },
 
             OpCode::DEC_RC(pos) => {
-                println!("{:?} {:?}", self.frames[self.ip].stack, self.ip);
                 match self.frames[self.ip].stack[pos] {
-                    Value::InstanceRef(heap_pos) => {
+                    Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
                         self.rc.dec_counter(heap_pos);
                     }
                     _ => panic!("Error, this type of value shoudnt be here DEC RC"),
@@ -390,7 +413,7 @@ impl VM {
             },
             OpCode::INC_RC(pos) => {
                 match self.frames[self.ip].stack[pos] {
-                    Value::InstanceRef(heap_pos) => {
+                    Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
                         self.rc.inc_counter(heap_pos);
                     }
                     _ => panic!("Error, this type of value shoudnt be here INC RC"),
