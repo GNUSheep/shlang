@@ -32,14 +32,6 @@ impl Object for Struct {
         self.rc_counter
     }
 
-    fn set_index(&mut self, index: usize) {
-        self.index = index;
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
-    }
-
     fn get_values(&self) -> Vec<Value> {
         vec![Value::String(self.name.clone())]
     }
@@ -68,10 +60,8 @@ impl Struct {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructInstance {
-    pub root_struct_pos: usize,
     pub fields_values: Vec<Value>,
     rc_counter: usize,
-    index: usize,
 }
 
 impl Object for StructInstance {
@@ -85,14 +75,6 @@ impl Object for StructInstance {
 
     fn get_rc_counter(&self) -> usize {
         self.rc_counter
-    }
-
-    fn set_index(&mut self, index: usize) {
-        self.index = index;
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
     }
 
     fn get_values(&self) -> Vec<Value> {
@@ -109,12 +91,10 @@ impl Object for StructInstance {
 }
 
 impl StructInstance {
-    pub fn new(pos: usize) -> Self {
+    pub fn new() -> Self {
         Self {
-            root_struct_pos: pos,
             fields_values: vec![],
             rc_counter: 1,
-            index: 0,
         }
     }
 }

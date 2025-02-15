@@ -32,7 +32,6 @@ pub struct Function {
     pub arg_count: usize,
     pub is_self_arg: bool,
     rc_counter: usize,
-    index: usize,
 }
 
 impl rc::Object for Function {
@@ -46,14 +45,6 @@ impl rc::Object for Function {
 
     fn get_rc_counter(&self) -> usize {
         self.rc_counter
-    }
-
-    fn set_index(&mut self, index: usize) {
-        self.index = index;
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
     }
 
     fn get_values(&self) -> Vec<Value> {
@@ -71,7 +62,7 @@ impl rc::Object for Function {
 impl Function {
     pub fn new(name: String) -> Self {
         Self {
-            name: name,
+            name,
             chunk: bytecode::Chunk::new(),
             locals: vec![],
             instances: vec![],
@@ -79,7 +70,6 @@ impl Function {
             arg_count: 0,
             is_self_arg: false,
             rc_counter: 1,
-            index: 0,
         }
     }
 
@@ -165,14 +155,6 @@ impl rc::Object for NativeFn {
 
     fn get_rc_counter(&self) -> usize {
         self.rc_counter
-    }
-
-    fn set_index(&mut self, index: usize) {
-        self.index = index;
-    }
-
-    fn get_index(&self) -> usize {
-        self.index
     }
 
     fn get_values(&self) -> Vec<Value> {

@@ -5,9 +5,6 @@ pub trait Object {
     fn dec_counter(&mut self);
     fn get_rc_counter(&self) -> usize;
 
-    fn set_index(&mut self, index: usize);
-    fn get_index(&self) -> usize;
-
     fn get_values(&self) -> Vec<value::Value>;
     fn set_value(&mut self, pos: usize, value: value::Value); 
     fn get_arg_count(&self) -> usize;
@@ -30,15 +27,6 @@ impl ReferenceCounter {
 
     pub fn get_object(&mut self, index: usize) -> &mut Box<dyn Object> {
         &mut self.heap[index]
-    }
-
-    pub fn find_object(&mut self, index: usize) -> usize {
-        for i in 0..self.heap.len() {
-            if self.heap[i].get_index() == index {
-                return i;
-            }
-        }
-        panic!();
     }
 
     pub fn inc_counter(&mut self, index: usize) {
@@ -76,12 +64,6 @@ impl Object for EmptyObject {
     fn dec_counter(&mut self) {}
 
     fn get_rc_counter(&self) -> usize {
-        0
-    }
-
-    fn set_index(&mut self, _index: usize) {}
-
-    fn get_index(&self) -> usize {
         0
     }
 

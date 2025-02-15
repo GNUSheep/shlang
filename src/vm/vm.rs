@@ -1,5 +1,5 @@
 use crate::{
-    objects::string::StringMethods, vm::{bytecode::{Chunk, Instruction, OpCode},
+    objects::{string::StringMethods, structs::StructInstance}, vm::{bytecode::{Chunk, Instruction, OpCode},
     value::Value,
 }};
 
@@ -169,18 +169,6 @@ impl VM {
                     _ => panic!("Error, this type of value shoudnt be here"),
                 };                
             },
-            OpCode::GET_INSTANCE_W_OFFSET_RF(index) => {
-                let mut offset = self.frames[self.ip].offset + index;
-                while matches!(self.rc.get_object(offset).get_values()[0], Value::InstanceRef(_)) {
-                    match self.rc.get_object(offset).get_values()[0] {
-                        Value::InstanceRef(pos) => {
-                            offset = pos;
-                        }
-                        _ => {},
-                    }
-                }
-                self.frames[self.ip].stack.push(Value::InstanceRef(offset));
-            },
             OpCode::GET_INSTANCE_RF(pos) => {
                 let instance_rf = self.frames[self.ip].stack[pos].clone();
                 self.frames[self.ip].stack.push(instance_rf);
@@ -277,7 +265,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: mth.chunk, stack: stack, ip: 0, offset: 0 });
+                self.frames.push(Frame { chunk: mth.chunk, stack, ip: 0, offset: 0 });
 
                 self.ip += 1;
             }
@@ -293,7 +281,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack: stack, ip: 0, offset: 0 });
+                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack, ip: 0, offset: 0 });
                 
                 self.ip += 1;
             },
@@ -580,81 +568,78 @@ impl VM {
             },
     
             OpCode::ADD_STRING => {
+                let stack_pos = self.frames[self.ip].stack.len() - 1;
+                self.run_instruction(Instruction { op: OpCode::DEC_RC(stack_pos), line: instruction.line });
+                self.run_instruction(Instruction { op: OpCode::DEC_RC(stack_pos - 1), line: instruction.line });
+                
                 let a = match self.frames[self.ip].stack.pop().unwrap() {
-                    Value::StringRef(index) => {
-                        let pos = self.rc.find_object(index);
-
+                    Value::StringRef(pos) => {
                         let fields = self.rc.get_object(pos).get_values();
-
                         fields[0].clone()
                     },
-                    _ => Value::Null,
+                    _ => panic!("Ref not found"),
                 };
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
-                    Value::StringRef(index) => {
-                        let pos = self.rc.find_object(index);
-
+                    Value::StringRef(pos) => {
                         let fields = self.rc.get_object(pos).get_values();
-
                         fields[0].clone()
                     },
-                    Value::String(val) => Value::String(val),
-                    _ => {
-                        Value::Null
-                    },
+                    _ => panic!("Ref not found")
                 };
     
-                self.frames[self.ip].stack.push(Value::String(b.get_string()+&a.get_string()));
+                let heap_pos = self.rc.heap.len();
+                let mut instance = StructInstance::new();
+            
+                instance.fields_values.push(Value::String(b.get_string()+&a.get_string()));
+                self.rc.push(Box::new(instance));
+                self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
+                
             },
             OpCode::EQ_STRING => {
+                let heap_pos = self.frames[self.ip].stack.len() - 1;
+                self.run_instruction(Instruction { op: OpCode::DEC_RC(heap_pos), line: instruction.line });
+                self.run_instruction(Instruction { op: OpCode::DEC_RC(heap_pos - 1), line: instruction.line });
+                
                 let a = match self.frames[self.ip].stack.pop().unwrap() {
-                    Value::StringRef(index) => {
-                        let pos = self.rc.find_object(index);
-
+                    Value::StringRef(pos) => {
                         let fields = self.rc.get_object(pos).get_values();
-
                         fields[0].clone()
                     },
-                    Value::String(val) => Value::String(val),
-                    _ => Value::Null,
+                    _ => panic!("Ref not found"),
                 };
+               
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
-                    Value::StringRef(index) => {
-                        let pos = self.rc.find_object(index);
-
+                    Value::StringRef(pos) => {
                         let fields = self.rc.get_object(pos).get_values();
-
                         fields[0].clone()
                     },
-                    Value::String(val) => Value::String(val),
-                    _ => Value::Null,
+                    _ => panic!("Ref not found")
                 };
-
+                
                 self.frames[self.ip].stack.push(Value::Bool(a.get_string()==b.get_string()));
             },
-            OpCode::NEG_EQ_STRING => {
+            OpCode::NEG_EQ_STRING => {    
+                let heap_pos = self.frames[self.ip].stack.len() - 1;
+                self.run_instruction(Instruction { op: OpCode::DEC_RC(heap_pos), line: instruction.line });
+                self.run_instruction(Instruction { op: OpCode::DEC_RC(heap_pos - 1), line: instruction.line });
+                
                 let a = match self.frames[self.ip].stack.pop().unwrap() {
-                    Value::StringRef(index) => {
-                        let pos = self.rc.find_object(index);
-
+                    Value::StringRef(pos) => {
                         let fields = self.rc.get_object(pos).get_values();
-
                         fields[0].clone()
                     },
-                    _ => Value::Null,
+                    _ => panic!("Ref not found"),
                 };
+               
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
-                    Value::StringRef(index) => {
-                        let pos = self.rc.find_object(index);
-
+                    Value::StringRef(pos) => {
                         let fields = self.rc.get_object(pos).get_values();
-
                         fields[0].clone()
                     },
-                    _ => Value::Null,
+                    _ => panic!("Ref not found")
                 };
-    
-                self.frames[self.ip].stack.push(Value::Bool(a!=b));
+
+                self.frames[self.ip].stack.push(Value::Bool(a.get_string()!=b.get_string()));
             },
 
             opcode => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: {:?}", opcode)),

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn, SpecialType}, lists::ListObj, rc::Object, string::StringObj, structs::{Struct, StructInstance}}, std::print::println, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    objects::{functions::{Function, Local, NativeFn, SpecialType}, lists::ListObj, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -157,10 +157,6 @@ impl Parser {
         }
     }
 
-    pub fn peek_prev(&self) -> Token {
-        self.tokens[self.index - 3].clone()
-    }
-
     pub fn check_if_eof(&mut self) -> bool {
         if self.cur.token_type == TokenType::EOF {
             return true;
@@ -254,7 +250,7 @@ impl Parser {
                     None => break 'l,
                 };
 
-                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count: arg_count });
+                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count });
             }
 
             if token.token_type == TokenType::KEYWORD(Keywords::STRUCT) {
@@ -304,7 +300,7 @@ impl Compiler {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self {
             parser: Parser {
-                tokens: tokens,
+                tokens,
                 cur: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
                 prev: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
                 line: 0,
@@ -364,6 +360,8 @@ impl Compiler {
         let right_side = self.get_cur_chunk().values.get(values_len - 1).convert();
 
         let constants_type = self.check_static_types(&right_side, left_side, &logic_token);
+
+        self.get_cur_chunk().push_value(Value::Bool(false));
 
         match constants_type {
             TokenType::INT => {
@@ -581,13 +579,11 @@ impl Compiler {
     }
  
     pub fn string_dec(&mut self) {
-        let struct_string_pos = self.get_struct_symbol_pos("String".to_string());
-
-        let mut instance_obj = StructInstance::new(struct_string_pos);
+        let mut instance_obj = StructInstance::new();
 
         let value = self.parser.prev.value.iter().collect::<String>();
         instance_obj.fields_values.push(Value::String(value.clone()));
-
+        
         self.emit_byte(OpCode::STRING_DEC(instance_obj), self.parser.line);
 
         self.get_cur_chunk().push_value(Value::String(String::new()));
@@ -612,7 +608,7 @@ impl Compiler {
         self.parser.consume(TokenType::EQ);
 
         let pos = self.get_struct_symbol_pos("List".to_string());
-        let mut list_obj = StructInstance::new(pos);
+        let list_obj = StructInstance::new();
 
         let mut field_count = 0;
 
@@ -650,13 +646,12 @@ impl Compiler {
         self.declaring_list = false;
         
         let len = self.parser.symbols.len();
-        list_obj.set_index(len);
 
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
         let list_type_value = self.get_list_type_value(list_type_token);
 
-        self.get_cur_instances().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::List(list_type_value) });
+        self.get_cur_instances().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::List(list_type_value) });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: list_type, arg_count: 0 })
     }
@@ -686,47 +681,25 @@ impl Compiler {
         let var_name = self.parser.prev.value.iter().collect::<String>();
         self.parser.consume(TokenType::EQ);
 
-        let pos = self.get_cur_locals()
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, local)| local.name == var_name)
-            .map(|(index, _)| index as i32)
-            .unwrap_or(-1);
+        let pos = self.get_local_pos(var_name);
 
-        // if pos != -1 && self.get_cur_instances()[pos as usize].is_special == SpecialType::String {
-        //     if self.get_cur_instances()[pos as usize].is_redirected {
-                
-        //         let pos_struct = self.get_struct_symbol_pos("String".to_string());
-        //         let mut instance_obj = StructInstance::new(pos_struct);
+        if self.parser.cur.token_type == TokenType::STRING {
+            self.expression();
 
-        //         let len = self.parser.symbols.len();
-        //         instance_obj.set_index(len);
-        //         self.get_cur_instances()[pos as usize].rf_index = len;
-        //         self.get_cur_instances()[pos as usize].is_redirected = false;
-        //         self.get_cur_instances()[pos as usize].redirect_pos = 0;
-        
-        //         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos_struct)), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+            self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
+            
+            if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                    TokenType::STRING,
+                    self.get_cur_chunk().get_last_value().convert(),
+                    self.parser.line,
+                ));
+                std::process::exit(1);
+            }
 
-        //         self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
-        //         self.get_cur_chunk().push_value(Value::String(String::new()));
-        //     }else {
-        //         self.emit_byte(OpCode::SET_INSTANCE_FIELD(pos as usize, 0), self.parser.line);
-        //     }
-
-        //     if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
-        //         errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
-        //             TokenType::STRING,
-        //             self.get_cur_chunk().get_last_value().convert(),
-        //             self.parser.line,
-        //         ));
-        //         std::process::exit(1);
-        //     }
-
-        //     return;
-        // }
-
-        if pos != -1 {
+            return;
+        }else if matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_)))  {
             let value_identifier = self.parser.cur.value.iter().collect::<String>();               
             self.parser.consume(TokenType::IDENTIFIER);
           
@@ -790,10 +763,7 @@ impl Compiler {
 
             return;
         }
-
         self.expression();
-
-        let pos = self.get_local_pos(var_name);
 
         let value_type = self.get_cur_chunk().get_last_value().convert();
         let var_type = self.get_cur_locals()[pos as usize].local_type;
@@ -817,7 +787,8 @@ impl Compiler {
         if self.get_cur_locals()[pos].is_special == SpecialType::String && !self.changing_fn {
             self.get_cur_chunk().push_value(Value::String(String::new()));
 
-            self.emit_byte(OpCode::GET_INSTANCE_FIELD(pos, 0), self.parser.line);
+            self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
         }else if matches!(self.get_cur_locals()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
             if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
                 self.get_cur_chunk().push_value(Value::List);
@@ -1098,7 +1069,7 @@ impl Compiler {
                     std::process::exit(1);
                 }
 
-                self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
 
                 return
             }
@@ -1109,9 +1080,8 @@ impl Compiler {
                 ));
                 std::process::exit(1);
             }            
-            self.parser.consume(TokenType::IDENTIFIER);
 
-            let value = self.parser.prev.value.iter().collect::<String>();
+            let value = self.parser.cur.value.iter().collect::<String>();
 
             let pos = self.parser.symbols
                 .iter()
@@ -1120,6 +1090,7 @@ impl Compiler {
                 .map(|(index, _)| index as i32)
                 .unwrap_or(-1);
 
+            self.parser.consume(TokenType::IDENTIFIER);
             if pos != -1 {
                 let output_symbol_pos = match self.parser.symbols[pos as usize].output_type {
                     TokenType::STRUCT(root_pos) => root_pos,
@@ -1146,31 +1117,31 @@ impl Compiler {
 
                 if value == "input" || self.parser.symbols[pos as usize].output_type == TokenType::STRING {
                     let pos = self.get_struct_symbol_pos("String".to_string());
-                    let instance_obj = StructInstance::new(pos);
+                    let instance_obj = StructInstance::new();
 
-                    self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                    self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
 
                     self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
                
                     return
                 }
 
-                self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(output_symbol_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });                
+                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(output_symbol_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });                
 
                 return
             }
 
             let pos = self.get_local_pos(value);
 
-            // Delete rf_index
+            // // Delete rf_index
             let local_type = self.get_cur_locals()[pos].local_type;
             let is_special = self.get_cur_locals()[pos].is_special.clone();
 
-            self.get_cur_locals().push(Local{ name: name.clone(), local_type: local_type, is_redirected: false, redirect_pos: pos, rf_index: 0, is_special: is_special });
+            self.get_cur_locals().push(Local{ name: name.clone(), local_type, is_redirected: false, redirect_pos: pos, rf_index: 0, is_special });
 
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
             self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
-             
+
             return
         }
 
@@ -1200,7 +1171,7 @@ impl Compiler {
         }
         self.parser.consume(TokenType::RIGHT_BRACE);
 
-        let mut instance_obj = StructInstance::new(var_pos);
+        let instance_obj = StructInstance::new();
 
         if field_counts != self.parser.symbols[var_pos].arg_count {
             errors::error_message("COMPILER ERROR",
@@ -1209,12 +1180,9 @@ impl Compiler {
         }
         let len = self.parser.symbols.len();
 
-        // remove index
-        instance_obj.set_index(len);
-
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj, field_counts), self.parser.line);
 
-        self.get_cur_locals().push(Local{ name: name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
+        self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
     }
 
     pub fn struct_declare(&mut self) {
@@ -1396,31 +1364,6 @@ impl Compiler {
         pos as usize
     }
     
-    pub fn get_instance_local_pos(&mut self, instance_name: String) -> usize {
-        let pos = self.get_cur_instances()
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, local)| {
-                local.name == instance_name &&
-                matches!(local.local_type, TokenType::KEYWORD(Keywords::INSTANCE(_)))
-            })
-            .map(|(index, _)| index as i32)
-            .unwrap_or(-1);
-
-        if pos == -1 {
-            errors::error_message("COMPILER ERROR",
-            format!("Local: \"{}\" is not defined as instance in this scope {}:", instance_name, self.parser.line));
-            std::process::exit(1);
-        }
-
-        if self.get_cur_instances()[pos as usize].is_redirected {
-            return self.get_cur_instances()[pos as usize].redirect_pos
-        }
-
-        pos as usize
-    }
-
     pub fn get_list_type_value(&self, list_token: Token) -> Value {
         let list_type_token = match list_token.token_type {
             TokenType::KEYWORD(keyword) => keyword.convert(),
@@ -2230,6 +2173,6 @@ impl Compiler {
             errors::error_message("PARSER ERROR", format!("Expression found outside of bounds {}:",self.parser.line));
             std::process::exit(1)
         }
-        self.get_cur_chunk().push(Instruction{ op: op, line: line });
+        self.get_cur_chunk().push(Instruction{ op, line });
     }
 }
