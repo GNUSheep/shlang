@@ -675,6 +675,8 @@ impl Compiler {
         let pos = self.get_fn_symbol_pos(self.parser.prev.value.iter().collect::<String>());
 
         self.symbol_to_hold = pos;
+        self.parser.consume(TokenType::LEFT_PAREN);
+        self.fn_call();
     }
 
     pub fn var_assign(&mut self) {
@@ -688,6 +690,7 @@ impl Compiler {
 
             self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
             self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
             
             if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
                 errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
@@ -927,9 +930,6 @@ impl Compiler {
                 ));
                 std::process::exit(1);
             }
-        }else {
-            let pos = self.get_cur_chunk().push_value(Value::Null);
-            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
         }
 
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
@@ -1016,6 +1016,7 @@ impl Compiler {
             }
 
             self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos as usize, field_index as usize), self.parser.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
         }else{
             match self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type {
                 TokenType::INT => {
@@ -1422,10 +1423,6 @@ impl Compiler {
 
             if self.parser.symbols[self.symbol_to_hold].name == "input" {
                 self.get_cur_chunk().push_value(Value::String(String::new()));
-            }else {
-                let pos = self.get_cur_chunk().push_value(Value::Null);
-                self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
-                
             }
             println!("{:?}", self.parser.symbols[self.symbol_to_hold]);
             for _ in 0..arg_count {
@@ -1668,7 +1665,12 @@ impl Compiler {
             },
             OpCode::GET_INSTANCE_RF(index) => {
                 self.emit_byte(OpCode::INC_RC(index), self.parser.line);
-                self.get_cur_chunk().get_last_value().convert()
+                match self.get_cur_locals()[index].local_type {
+                    TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
+                        TokenType::STRUCT(pos)
+                    }
+                    _ => panic!("Unexpected token in return stmt for Instance Ref")
+                }
             }
             _ => {
                 self.get_cur_chunk().get_last_value().convert()   
@@ -2000,13 +2002,13 @@ impl Compiler {
                 self.parser.advance();
                 self.declare();
             },
+            TokenType::IDENTIFIER => {
+                self.parser.advance();
+                self.identifier();
+            }
             TokenType::KEYWORD(Keywords::RETURN) => {
                 self.parser.advance();
                 self.return_stmt();
-            },
-            TokenType::STRING => {
-                self.parser.advance();
-                self.string_dec();
             },
             TokenType::KEYWORD(Keywords::STRUCT) => {
                 self.parser.advance();
@@ -2085,9 +2087,12 @@ impl Compiler {
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
                 self.emit_byte(OpCode::LOOP(offset), self.parser.line);
             },
-            _ => {
-                self.expression();
-                self.emit_byte(OpCode::POP, self.parser.line);
+            invalid_token => {
+                    errors::error_message("COMPILING ERROR", format!("Unexpected token found {} {}:",
+                        invalid_token,
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
             },
         }
     }

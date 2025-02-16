@@ -106,7 +106,10 @@ impl VM {
 
                     self.ip -= 1;
 
-                    self.frames[self.ip].stack.push(return_val);
+                    if return_val != Value::Null {                    
+                        self.frames[self.ip].stack.push(return_val);
+                    }
+                    
                 },
                 _ => {
                     self.run_instruction(instruction);
