@@ -675,8 +675,6 @@ impl Compiler {
         let pos = self.get_fn_symbol_pos(self.parser.prev.value.iter().collect::<String>());
 
         self.symbol_to_hold = pos;
-        self.parser.consume(TokenType::LEFT_PAREN);
-        self.fn_call();
     }
 
     pub fn var_assign(&mut self) {
@@ -688,10 +686,6 @@ impl Compiler {
         if self.parser.cur.token_type == TokenType::STRING {
             self.expression();
 
-            self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
-            self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
-            self.emit_byte(OpCode::POP, self.parser.line);
-            
             if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
                 errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                     TokenType::STRING,
@@ -700,6 +694,13 @@ impl Compiler {
                 ));
                 std::process::exit(1);
             }
+
+            self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::POP, self.parser.line);
+
+            let pos = self.get_cur_chunk().push_value(Value::Null);
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
 
             return;
         }else if matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_)))  {
@@ -930,8 +931,11 @@ impl Compiler {
                 ));
                 std::process::exit(1);
             }
+        } else {
+            let pos = self.get_cur_chunk().push_value(Value::Null);
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
         }
-
+        
         self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
     }
 
@@ -1017,6 +1021,9 @@ impl Compiler {
 
             self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos as usize, field_index as usize), self.parser.line);
             self.emit_byte(OpCode::POP, self.parser.line);
+
+            let pos = self.get_cur_chunk().push_value(Value::Null);            
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
         }else{
             match self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type {
                 TokenType::INT => {
@@ -1163,8 +1170,9 @@ impl Compiler {
                     self.parser.line
                 ));
                 std::process::exit(1);
+
             }
-            
+          
             if self.parser.cur.token_type == TokenType::COMMA {
                 self.parser.consume(TokenType::COMMA);
             }
@@ -1424,11 +1432,7 @@ impl Compiler {
             if self.parser.symbols[self.symbol_to_hold].name == "input" {
                 self.get_cur_chunk().push_value(Value::String(String::new()));
             }
-            println!("{:?}", self.parser.symbols[self.symbol_to_hold]);
-            for _ in 0..arg_count {
-                self.emit_byte(OpCode::POP, self.parser.line);
-            }
-
+            
             return
         }
 
@@ -1582,7 +1586,7 @@ impl Compiler {
                     std::process::exit(1);
                 }
                 
-                let pos = self.get_struct_symbol_pos(val); 
+                let pos = self.get_struct_symbol_pos(val);
                 function.output_type = TokenType::STRUCT(pos);  
                 
                 self.parser.consume(TokenType::IDENTIFIER)
@@ -2002,10 +2006,6 @@ impl Compiler {
                 self.parser.advance();
                 self.declare();
             },
-            TokenType::IDENTIFIER => {
-                self.parser.advance();
-                self.identifier();
-            }
             TokenType::KEYWORD(Keywords::RETURN) => {
                 self.parser.advance();
                 self.return_stmt();
@@ -2087,13 +2087,11 @@ impl Compiler {
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
                 self.emit_byte(OpCode::LOOP(offset), self.parser.line);
             },
-            invalid_token => {
-                    errors::error_message("COMPILING ERROR", format!("Unexpected token found {} {}:",
-                        invalid_token,
-                        self.parser.line,
-                    ));
-                    std::process::exit(1);
-            },
+            _ => {
+                // cwelu glupi musisz sprwadzic czy dana wartosc ktora tu wpada jest stringiem czy nie, jak jest to robisz pop i odrazuje decRC. Nic innego waznejsziego tu nie wpada. Jedynie jeszcze jakies objekty i to tez sprwadz cwelu.
+                self.expression();
+                self.emit_byte(OpCode::POP_UNUSED, self.parser.line);
+            }
         }
     }
 

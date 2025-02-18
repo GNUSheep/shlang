@@ -90,7 +90,7 @@ impl VM {
                     }
 
                     let return_val = self.frames[self.ip].stack.pop().unwrap();
-                
+
                     let mut instr = self.get_instruction().clone();
 
                     while instr.op != OpCode::END_OF_FN {
@@ -105,11 +105,7 @@ impl VM {
                     self.rc.remove();
 
                     self.ip -= 1;
-
-                    if return_val != Value::Null {                    
-                        self.frames[self.ip].stack.push(return_val);
-                    }
-                    
+                    self.frames[self.ip].stack.push(return_val);
                 },
                 _ => {
                     self.run_instruction(instruction);
@@ -159,6 +155,11 @@ impl VM {
                 };
 
                 let field_value = instance_obj.get_values()[field_pos].clone();
+                match field_value {
+                    Value::StringRef(heap_pos) => self.rc.get_object(heap_pos).inc_counter(),
+                    _ => {},
+                }
+                
                 self.frames[self.ip].stack.push(field_value);
             },
             OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
@@ -170,7 +171,7 @@ impl VM {
                         self.rc.get_object(heap_pos).set_value(field_pos, value);
                     }
                     _ => panic!("Error, this type of value shoudnt be here"),
-                };                
+                };
             },
             OpCode::GET_INSTANCE_RF(pos) => {
                 let instance_rf = self.frames[self.ip].stack[pos].clone();
@@ -307,7 +308,6 @@ impl VM {
                     stack.push(value)
                 }
                 stack.reverse();
-
                 let output = native_fn(stack);
 
                 for i in 0..arg_count {
@@ -322,9 +322,7 @@ impl VM {
 
                 self.rc.remove();
                 
-                if output != Value::Null {
-                    self.frames[self.ip].stack.push(output);
-                }
+                self.frames[self.ip].stack.push(output);
             },
             OpCode::IO_FN_CALL(index, arg_count) => {
                 let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
@@ -344,9 +342,8 @@ impl VM {
                     stack.push(value);
                 }
                 stack.reverse();
-                
-                let output = native_fn(stack);
 
+                let output = native_fn(stack);
                 // For know this is okay, but for futrue, IO functioncs need to be rewrited and done as Natvie Functions
                 for i in 0..arg_count {
                     match self.frames[self.ip].stack[len - i].clone() {
@@ -355,14 +352,12 @@ impl VM {
                         }
                         _ => {},
                     }
+                    self.run_instruction(Instruction { op: OpCode::POP, line: instruction.line });
                 }
 
                 self.rc.remove();
-                
-                if output != Value::Null {
-                    self.frames[self.ip].stack.pop();
-                    self.frames[self.ip].stack.push(output);
-                }
+
+                self.frames[self.ip].stack.push(output);
             },
 
             OpCode::IF_STMT_OFFSET(offset) => {
@@ -388,6 +383,16 @@ impl VM {
             OpCode::POP => {
                 self.frames[self.ip].stack.pop();
             },
+            OpCode::POP_UNUSED => {
+                let value = self.frames[self.ip].stack.pop().unwrap();
+
+                match value {
+                    Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos).dec_counter();
+                    }
+                    _ => {},
+                }
+            }
 
             OpCode::DEC_RC(pos) => {
                 match self.frames[self.ip].stack[pos] {

@@ -6,7 +6,7 @@ use crate::{
     vm::{bytecode::{Instruction, OpCode}, value::Value
 }};
 
-use super::{functions::{Function, Local, NativeFn, SpecialType}, structs::Struct};
+use super::{functions::{Function, Local, NativeFn, SpecialType}, structs::{Struct, StructInstance}};
 
 pub struct StringObj {}
 
@@ -70,33 +70,47 @@ impl StringMethods {
 
         let mut function = Function::new(name);
 
-        function.chunk.push_value(Value::String(String::new()));
-        function.chunk.push_value(Value::Null);
-
         function.output_type = out_type;
         function.is_self_arg = true;
         function.arg_count = arg_count - 1;
 
-        function.instances.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+        function.chunk.push_value(Value::String(String::new()));
+        function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+        function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
         
         if arg_type == TokenType::STRING {
             for i in 1..arg_count {
-                function.instances.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
-                function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(i, 0), line: 1});
+                function.locals.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_RF(i), line: 1});
+                function.chunk.push(Instruction { op: OpCode::INC_RC(i), line: 1});
             }
         }
 
-        function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
         function.chunk.push(Instruction { op: OpCode::NATIVE_FN_CALL(self.cur_pos), line: 1});
 
-        if out_type != TokenType::NULL {
-            function.chunk.push(Instruction { op: OpCode::RETURN, line: 1});
+        if out_type == TokenType::STRING {
+            let instance_object = StructInstance::new();
+
+            function.chunk.push(Instruction { op: OpCode::STRING_DEC_VALUE(instance_object), line: 2 });
         }
 
-        function.chunk.push(Instruction { op: OpCode::CONSTANT_NULL(1), line: 1});
-        function.chunk.push(Instruction { op: OpCode::RETURN, line: 1});
-        function.chunk.push(Instruction { op: OpCode::DEC_RC(0), line: 1});
-        function.chunk.push(Instruction { op: OpCode::END_OF_FN, line: 1});
+        if out_type != TokenType::NULL {
+            function.chunk.push(Instruction { op: OpCode::RETURN, line: 2});
+        }
+
+        function.chunk.push(Instruction { op: OpCode::CONSTANT_NULL(1), line: 2});
+        function.chunk.push(Instruction { op: OpCode::RETURN, line: 2});
+
+        function.chunk.push(Instruction { op: OpCode::DEC_RC(0), line: 2});
+
+        if arg_type == TokenType::STRING {
+            for i in 0..function.arg_count {
+                function.chunk.push(Instruction { op: OpCode::DEC_RC(i+1), line: 2});
+            }
+        }
+
+        
+        function.chunk.push(Instruction { op: OpCode::END_OF_FN, line: 2});
 
         function
     }
@@ -114,21 +128,22 @@ impl StringMethods {
     }
 
     fn get(args: Vec<Value>) -> Value {
+        println!("{:?}", args);
         Value::String(String::from_utf8(vec![args[1].get_string().as_bytes()[args[0].get_int() as usize]]).unwrap())
     }
 
     fn count(args: Vec<Value>) -> Value {
-        let str = args[1].get_string();
+        let str = args[0].get_string();
 
-        let vec_indices = str.match_indices(&args[0].get_string()).collect::<Vec<_>>();
+        let vec_indices = str.match_indices(&args[1].get_string()).collect::<Vec<_>>();
 
         Value::Int(vec_indices.len() as i64)
     }
 
     fn find(args: Vec<Value>) -> Value {
-        let str = args[1].get_string();
+        let str = args[0].get_string();
 
-        match str.find(&args[0].get_string()) {
+        match str.find(&args[1].get_string()) {
             Some(val) => Value::Int(val as i64),
             None => Value::Int(-1),
         }
@@ -159,6 +174,6 @@ impl StringMethods {
     }
 
     fn replace(args: Vec<Value>) -> Value {
-        Value::String(args[2].get_string().replace(&args[0].get_string(), &args[1].get_string()))
+        Value::String(args[0].get_string().replace(&args[1].get_string(), &args[2].get_string()))
     }
 }

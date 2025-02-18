@@ -15,8 +15,7 @@ fn main() {
     println(l.x, " ", p.x)
 }
 
-fn help() Foo {
-    
+fn help() Foo {    
     var z: Foo = {8.5, 10}
 
     var x: Foo = {2.5, 4}

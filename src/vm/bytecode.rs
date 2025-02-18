@@ -31,6 +31,7 @@ pub enum OpCode {
     VAR_SET(usize),
 
     POP,
+    POP_UNUSED,
     DEC_RC(usize),
     DEC_TO(usize),
     INC_RC(usize),
