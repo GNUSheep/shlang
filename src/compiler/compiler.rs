@@ -11,7 +11,7 @@ pub struct LoopInfo {
     pub loop_type: TokenType,
     pub start: usize,
     pub locals_start: usize,
-    pub instance_start: usize,
+    pub end_stmt_pos: usize,
 }
 
 impl LoopInfo {
@@ -20,7 +20,7 @@ impl LoopInfo {
             loop_type: TokenType::NULL,
             start: 0,
             locals_start: 0,
-            instance_start: 0,
+            end_stmt_pos: 0,
         }
     }
 }
@@ -765,6 +765,11 @@ impl Compiler {
             self.emit_byte(OpCode::GET_INSTANCE_RF(value_pos as usize), self.parser.line);
             self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
 
+            self.emit_byte(OpCode::POP, self.parser.line);
+        
+            let pos = self.get_cur_chunk().push_value(Value::Null);
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
+
             return;
         }
         self.expression();
@@ -781,6 +786,10 @@ impl Compiler {
         }
 
         self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
+        
+        let pos = self.get_cur_chunk().push_value(Value::Null);
+        self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
     }
 
     pub fn var_call(&mut self) {
@@ -1702,7 +1711,6 @@ impl Compiler {
             std::process::exit(1);
         }
         
-
         self.expression();
 
         if self.parser.symbols.len() > 1 && 
@@ -1723,25 +1731,20 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
-        let instance_counter = self.get_cur_instances().len();
 
         self.block();
 
-        for _ in 0..self.get_cur_locals().len() - local_counter {
-            self.emit_byte(OpCode::POP, self.parser.line);
-            self.get_cur_locals().pop();
-        }
-
-        for index in (0..self.get_cur_instances().len() - instance_counter).rev() {
-            match self.get_cur_instances()[index].local_type.clone() {
+        for i in (0..self.get_cur_locals().len() - local_counter).rev() {
+            match self.get_cur_locals()[local_counter + i].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.emit_byte(OpCode::DEC_TO(instance_counter), self.parser.line);
-                    self.get_cur_instances().pop();
+                    self.emit_byte(OpCode::DEC_RC(local_counter + i), self.parser.line);
                 },
                 _ => {},
             }
+
+            self.emit_byte(OpCode::POP, self.parser.line);
+            self.get_cur_locals().pop();
         }
-        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let index_exit_if = self.get_cur_chunk().code.len();
         self.emit_byte(OpCode::JUMP(0), self.parser.line);
@@ -1757,6 +1760,8 @@ impl Compiler {
 
         let offset_exit_if = (self.get_cur_chunk().code.len() - index_exit_if) - 1; 
         self.get_cur_chunk().code[index_exit_if] = Instruction { op: OpCode::JUMP(offset_exit_if), line: self.parser.line };
+
+        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
     }
 
     pub fn else_stmt(&mut self) {
@@ -1794,45 +1799,37 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
-        let instance_counter = self.get_cur_instances().len();
         self.scope_depth += 1;
 
         self.loop_info.loop_type = TokenType::KEYWORD(Keywords::WHILE);
         self.loop_info.locals_start = local_counter;
-        self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
 
         self.block();
 
         self.loop_info.loop_type = TokenType::KEYWORD(Keywords::WHILE);
         self.loop_info.locals_start = local_counter;
-        self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
         self.scope_depth -= 1;
 
-        for _ in 0..self.get_cur_locals().len() - local_counter {
-            self.emit_byte(OpCode::POP, self.parser.line);
-            self.get_cur_locals().pop();
-        }
-
-        for index in (0..self.get_cur_instances().len() - self.loop_info.instance_start).rev() {
-            match self.get_cur_instances()[index].local_type.clone() {
+        for i in (0..self.get_cur_locals().len() - local_counter).rev() {
+            match self.get_cur_locals()[local_counter + i].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.get_cur_instances().pop();
+                    self.emit_byte(OpCode::DEC_RC(local_counter + i), self.parser.line);
                 },
                 _ => {},
             }
+            self.emit_byte(OpCode::POP, self.parser.line);
+            self.get_cur_locals().pop();
         }
-
-        self.emit_byte(OpCode::DEC_TO(self.loop_info.instance_start), self.parser.line);
-
-        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
         self.emit_byte(OpCode::LOOP(offset_loop), self.parser.line);
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_exit_stmt) - 1;
         self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.parser.line };
+
+        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
         self.emit_byte(OpCode::POP, self.parser.line);
     }
@@ -1841,6 +1838,12 @@ impl Compiler {
         self.parser.consume(TokenType::IDENTIFIER);
 
         let identifier = self.parser.prev.value.iter().collect::<String>();
+       
+        if self.get_cur_locals().iter().any(| local | local.name == identifier ) {
+            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", identifier, self.parser.line));
+            std::process::exit(1);
+        }
+        
         self.get_cur_locals().push(Local { name: identifier, local_type: TokenType::INT, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
 
         self.parser.consume(TokenType::KEYWORD(Keywords::IN));
@@ -1850,10 +1853,26 @@ impl Compiler {
         
         self.expression();
 
+        if !matches!(self.get_cur_chunk().get_last_value(), Value::Int(_)) { 
+            errors::error_message("COMPILING ERROR", format!("For statement: values in range must be INT type, found: {:?} {}:",
+                self.get_cur_chunk().get_last_value().clone(),
+                self.parser.line,
+            ));
+            std::process::exit(1);
+        }
+
         self.parser.consume(TokenType::COMMA);
 
         self.expression();
 
+        if !matches!(self.get_cur_chunk().get_last_value(), Value::Int(_)) { 
+            errors::error_message("COMPILING ERROR", format!("For statement: values in range must be INT type, found: {:?} {}:",
+                self.get_cur_chunk().get_last_value().clone(),
+                self.parser.line,
+            ));
+            std::process::exit(1);
+        }
+        
         self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
 
         if self.parser.cur.token_type != TokenType::RIGHT_PAREN {
@@ -1887,7 +1906,7 @@ impl Compiler {
         self.emit_byte(OpCode::VAR_CALL(len_locals - 3), self.parser.line);
         self.emit_byte(OpCode::VAR_CALL(len_locals - 2), self.parser.line);
 
-        self.emit_byte(OpCode::EQ_LESS_INT, self.parser.line);
+        self.emit_byte(OpCode::LESS_INT, self.parser.line);
         //
 
         let index_exit_stmt = self.get_cur_chunk().code.len();
@@ -1897,20 +1916,19 @@ impl Compiler {
         self.parser.consume(TokenType::LEFT_BRACE);
 
         let local_counter = self.get_cur_locals().len();
-        let instance_counter = self.get_cur_instances().len();
         self.scope_depth += 1;
 
         self.loop_info.loop_type = TokenType::KEYWORD(Keywords::FOR);
         self.loop_info.locals_start = local_counter;
-        self.loop_info.instance_start = instance_counter;
         self.loop_info.start = loop_start_index;
+        self.loop_info.end_stmt_pos = index_exit_stmt;
 
         self.block();
 
         self.loop_info.loop_type = TokenType::KEYWORD(Keywords::FOR);
         self.loop_info.start = loop_start_index;
         self.loop_info.locals_start = local_counter;
-        self.loop_info.instance_start = instance_counter;
+        self.loop_info.end_stmt_pos = index_exit_stmt;
         self.scope_depth -= 1;
 
         // adding
@@ -1921,35 +1939,29 @@ impl Compiler {
         self.emit_byte(OpCode::ADD_INT, self.parser.line);
 
         self.emit_byte(OpCode::VAR_SET(len_locals - 3), self.parser.line);
+        self.emit_byte(OpCode::POP, self.parser.line);
         //
 
-        for _ in (0..self.get_cur_locals().len() - local_counter + 1).rev() {
-            self.emit_byte(OpCode::POP, self.parser.line);
-            self.get_cur_locals().pop();
-        }
-
-        for index in (0..self.get_cur_instances().len() - self.loop_info.instance_start).rev() {
-            match self.get_cur_instances()[index].local_type.clone() {
+        for i in (0..self.get_cur_locals().len() - local_counter).rev() {
+            match self.get_cur_locals()[local_counter + i].local_type.clone() {
                 TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
-                    self.get_cur_instances().pop();
+                    self.emit_byte(OpCode::DEC_RC(local_counter + i), self.parser.line);
                 },
                 _ => {},
             }
+            self.emit_byte(OpCode::POP, self.parser.line);
+            self.get_cur_locals().pop();
         }
-
-        self.emit_byte(OpCode::DEC_TO(self.loop_info.instance_start), self.parser.line);
-
-        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
-
+        
         let offset_loop = (self.get_cur_chunk().code.len() - loop_start_index) + 1;
         self.emit_byte(OpCode::LOOP(offset_loop), self.parser.line);
 
         let offset_stmt = (self.get_cur_chunk().code.len() - index_exit_stmt) - 1;
         self.get_cur_chunk().code[index_exit_stmt] = Instruction { op: OpCode::IF_STMT_OFFSET(offset_stmt), line: self.parser.line };
 
-        self.emit_byte(OpCode::POP, self.parser.line);
+        self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
 
-        for _ in 0..2 {
+        for _ in 0..3 {
             self.emit_byte(OpCode::POP, self.parser.line);
             self.get_cur_locals().pop();
         }
@@ -2054,8 +2066,22 @@ impl Compiler {
 
                 self.emit_byte(OpCode::BREAK, self.parser.line);
 
+                let local_counter = self.loop_info.locals_start;
+
+                for i in (0..self.get_cur_locals().len() - local_counter).rev() {
+                    match self.get_cur_locals()[local_counter + i].local_type.clone() {
+                        TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                            self.emit_byte(OpCode::DEC_RC(local_counter + i), self.parser.line);
+                        },
+                        _ => {},
+                    }
+                    self.emit_byte(OpCode::POP, self.parser.line);
+                }
+
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
+
                 self.emit_byte(OpCode::LOOP(offset), self.parser.line);
+
             },
             TokenType::KEYWORD(Keywords::CONTINUE) => {
                 self.parser.advance();
@@ -2067,28 +2093,34 @@ impl Compiler {
                     std::process::exit(1);
                 };
 
-                if self.loop_info.loop_type == TokenType::KEYWORD(Keywords::WHILE) {
-                    let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
-                    self.emit_byte(OpCode::DEC_TO(self.loop_info.instance_start), self.parser.line);
-                    self.emit_byte(OpCode::RF_REMOVE, self.parser.line);
-                    self.emit_byte(OpCode::LOOP(offset), self.parser.line);
+                if self.loop_info.loop_type == TokenType::KEYWORD(Keywords::FOR) {
+                    self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 3), self.parser.line);
 
-                    return
+                    self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 1), self.parser.line);
+        
+                    self.emit_byte(OpCode::ADD_INT, self.parser.line);
+        
+                    self.emit_byte(OpCode::VAR_SET(self.loop_info.locals_start - 3), self.parser.line);
+
+                    self.emit_byte(OpCode::POP, self.parser.line);
                 }
 
-                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 3), self.parser.line);
+                let local_counter = self.loop_info.locals_start;
 
-                self.emit_byte(OpCode::VAR_CALL(self.loop_info.locals_start - 1), self.parser.line);
-        
-                self.emit_byte(OpCode::ADD_INT, self.parser.line);
-        
-                self.emit_byte(OpCode::VAR_SET(self.loop_info.locals_start - 3), self.parser.line);
+                for i in (0..self.get_cur_locals().len() - local_counter).rev() {
+                    match self.get_cur_locals()[local_counter + i].local_type.clone() {
+                        TokenType::KEYWORD(Keywords::INSTANCE(_)) => {
+                            self.emit_byte(OpCode::DEC_RC(local_counter + i), self.parser.line);
+                        },
+                        _ => {},
+                    }
+                    self.emit_byte(OpCode::POP, self.parser.line);
+                }
 
                 let offset = (self.get_cur_chunk().code.len() - self.loop_info.start) + 1;
                 self.emit_byte(OpCode::LOOP(offset), self.parser.line);
             },
             _ => {
-                // cwelu glupi musisz sprwadzic czy dana wartosc ktora tu wpada jest stringiem czy nie, jak jest to robisz pop i odrazuje decRC. Nic innego waznejsziego tu nie wpada. Jedynie jeszcze jakies objekty i to tez sprwadz cwelu.
                 self.expression();
                 self.emit_byte(OpCode::POP_UNUSED, self.parser.line);
             }
