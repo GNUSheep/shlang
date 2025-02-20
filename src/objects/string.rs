@@ -16,7 +16,7 @@ impl StringObj {
 
         Struct {
             name: "String".to_string(),
-            locals: vec![Local { name: "value".to_string(), local_type: TokenType::STRING, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String }],
+            locals: vec![Local { name: "value".to_string(), local_type: TokenType::STRING, is_special: SpecialType::String }],
             output_type: TokenType::NULL,
             field_count: 1,
             methods: mths.get_methods(),
@@ -75,12 +75,12 @@ impl StringMethods {
         function.arg_count = arg_count - 1;
 
         function.chunk.push_value(Value::String(String::new()));
-        function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+        function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_special: SpecialType::String });
         function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
         
         if arg_type == TokenType::STRING {
             for i in 1..arg_count {
-                function.locals.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                function.locals.push(Local { name: "".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_special: SpecialType::String });
                 function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_RF(i), line: 1});
                 function.chunk.push(Instruction { op: OpCode::INC_RC(i), line: 1});
             }

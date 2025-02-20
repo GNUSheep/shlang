@@ -10,7 +10,6 @@ pub struct Frame {
     pub chunk: Chunk,
     pub stack: Vec<Value>,
     pub ip: usize,
-    pub offset: usize,
 }
 
 pub struct VM {
@@ -74,12 +73,10 @@ impl VM {
             }
         }
 
-        Frame{chunk: self.rc.get_object(main_function_index).get_values()[0].get_chunk(), stack: vec![], ip: 0, offset: 0 }
+        Frame{chunk: self.rc.get_object(main_function_index).get_values()[0].get_chunk(), stack: vec![], ip: 0}
     }
 
     pub fn run(&mut self) {
-        // remove offset
-        self.frames[self.ip].offset = self.rc.heap.len();
         loop {
             let instruction = self.get_instruction().clone();
             match instruction.op {
@@ -179,84 +176,10 @@ impl VM {
             },
  
             OpCode::GET_LIST_FIELD(pos) => {
-                let list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-
-                let field_pos = match self.frames[self.ip].stack.pop() {
-                    Some(Value::Int(val)) => {
-                        if val < 0 {     
-                            errors::error_message("RUNTIME - VM ERROR", 
-                                format!("VM - Index cannot be negative {}:", instruction.line));
-                            std::process::exit(1);
-                        };
-                        val as usize
-                    }
-                    _ => {                        
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
-                        std::process::exit(1);
-                    },
-                };
-
-                if field_pos >= list_fields.len() {                
-                    errors::error_message("RUNTIME - VM ERROR", 
-                        format!("VM - List index out of range  {}/{} {}:", field_pos, list_fields.len(), instruction.line));
-                    std::process::exit(1);
-                };
-
-                match list_fields[field_pos] {
-                    Value::InstanceRef(pos) => {
-                        self.frames[self.ip].stack.push(self.rc.get_object(pos).get_values()[0].clone())
-                    },
-                    _ => {
-                        self.frames[self.ip].stack.push(list_fields[field_pos].clone());
-                    }
-                }
-                
             },
             OpCode::GET_LIST(pos) => {
-                let list_fields = self.rc.get_object(self.frames[self.ip].offset+pos).get_values();
-                let mut list_fields_unwrap = vec![];
-                for field in list_fields {
-                    match field {
-                        Value::InstanceRef(index) => {
-                            list_fields_unwrap.push(Value::InstanceObj(self.rc.get_object(index).get_values()));   
-                        },
-                        Value::StringRef(index) => {
-                            list_fields_unwrap.push(self.rc.get_object(index).get_values()[0].clone());
-                        },
-                        _ => {
-                            list_fields_unwrap.push(field);
-                        },
-                    }
-                };
-                
-                self.frames[self.ip].stack.push(Value::ListObj(list_fields_unwrap));
             },
             OpCode::SET_LIST_FIELD(pos) => {                
-                let len = self.frames[self.ip].stack.len() - 1;
-                
-                let value = match self.frames[self.ip].stack.pop() {
-                    Some(val) => val,
-                    _ => {
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: missing value on stack {}:", instruction.line));
-                        std::process::exit(1);
-                    }    
-                };
-
-                let field_pos = match self.frames[self.ip].stack[len - 1].clone() {
-                    Value::Int(val) => {
-                        if val < 0 {     
-                            errors::error_message("RUNTIME - VM ERROR", 
-                                format!("VM - Index cannot be negative {}:", instruction.line));
-                        };
-                        val as usize
-                    }
-                    _ => {                        
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: bad value on stack {}:", instruction.line));
-                        std::process::exit(1);
-                    },
-                };
-
-                self.rc.get_object(self.frames[self.ip].offset + pos).set_value(field_pos, value);
             },
 
             OpCode::METHOD_CALL(mth) => {
@@ -269,7 +192,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: mth.chunk, stack, ip: 0, offset: 0 });
+                self.frames.push(Frame { chunk: mth.chunk, stack, ip: 0});
 
                 self.ip += 1;
             }
@@ -285,7 +208,7 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack, ip: 0, offset: 0 });
+                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack, ip: 0});
                 
                 self.ip += 1;
             },
@@ -357,7 +280,17 @@ impl VM {
 
                 self.rc.remove();
 
-                self.frames[self.ip].stack.push(output);
+                match output {
+                    Value::String(_) => {
+                        let mut instance = StructInstance::new();
+                        instance.fields_values.push(output);
+
+                        let heap_pos = self.rc.heap.len();
+                        self.rc.push(Box::new(instance));
+                        self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
+                    }
+                    output => self.frames[self.ip].stack.push(output),                  
+                }
             },
 
             OpCode::IF_STMT_OFFSET(offset) => {
@@ -402,11 +335,6 @@ impl VM {
                     _ => panic!("Error, this type of value shoudnt be here DEC RC"),
                 };
             },
-            OpCode::DEC_TO(index) => {
-                for i in (self.frames[self.ip].offset+index..self.rc.heap.len()).rev() {
-                    self.rc.dec_counter(i);
-                }
-            },
             OpCode::INC_RC(pos) => {
                 match self.frames[self.ip].stack[pos] {
                     Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
@@ -414,9 +342,6 @@ impl VM {
                     }
                     _ => panic!("Error, this type of value shoudnt be here INC RC"),
                 };        
-            },
-            OpCode::PUSH_STACK(val) => {
-                self.frames[self.ip].stack.push(val);
             },
             OpCode::RF_REMOVE => {
                 self.rc.remove();

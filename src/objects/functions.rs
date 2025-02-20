@@ -16,9 +16,6 @@ pub enum SpecialType {
 pub struct Local {
     pub name: String,
     pub local_type: TokenType,
-    pub is_redirected: bool,
-    pub redirect_pos: usize,
-    pub rf_index: usize,
     pub is_special: SpecialType,
 }
 

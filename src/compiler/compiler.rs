@@ -645,13 +645,11 @@ impl Compiler {
         self.parser.consume(TokenType::RIGHT_BRACKET);       
         self.declaring_list = false;
         
-        let len = self.parser.symbols.len();
-
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
         let list_type_value = self.get_list_type_value(list_type_token);
 
-        self.get_cur_instances().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::List(list_type_value) });
+        self.get_cur_instances().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_special: SpecialType::List(list_type_value) });
 
         self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: list_type, arg_count: 0 })
     }
@@ -850,8 +848,6 @@ impl Compiler {
                 self.get_cur_chunk().push_value(list_type);
             }
         } else if self.declaring_list {
-            let rf_index = self.get_cur_instances()[pos as usize].rf_index;
-            self.emit_byte(OpCode::PUSH_STACK(Value::InstanceRef(rf_index)), self.parser.line);
         } else if matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))){
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
         }
@@ -945,7 +941,7 @@ impl Compiler {
             self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
         }
         
-        self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+        self.get_cur_locals().push(Local { name: var_name, local_type: var_type, is_special: SpecialType::Null });
     }
 
     pub fn instance_call(&mut self) {
@@ -1086,7 +1082,7 @@ impl Compiler {
                     std::process::exit(1);
                 }
 
-                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_special: SpecialType::String });
 
                 return
             }
@@ -1134,27 +1130,23 @@ impl Compiler {
 
                 if value == "input" || self.parser.symbols[pos as usize].output_type == TokenType::STRING {
                     let pos = self.get_struct_symbol_pos("String".to_string());
-                    let instance_obj = StructInstance::new();
 
-                    self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                    self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_special: SpecialType::String });
 
-                    self.emit_byte(OpCode::STRING_DEC_VALUE(instance_obj), self.parser.line);
-               
                     return
                 }
 
-                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(output_symbol_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });                
+                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(output_symbol_pos)), is_special: SpecialType::Null });                
 
                 return
             }
 
             let pos = self.get_local_pos(value);
 
-            // // Delete rf_index
             let local_type = self.get_cur_locals()[pos].local_type;
             let is_special = self.get_cur_locals()[pos].is_special.clone();
 
-            self.get_cur_locals().push(Local{ name: name.clone(), local_type, is_redirected: false, redirect_pos: pos, rf_index: 0, is_special });
+            self.get_cur_locals().push(Local{ name: name.clone(), local_type, is_special });
 
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
             self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
@@ -1196,11 +1188,9 @@ impl Compiler {
             format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[var_pos].arg_count, field_counts, self.parser.line));
             std::process::exit(1);
         }
-        let len = self.parser.symbols.len();
-
         self.emit_byte(OpCode::INSTANCE_DEC(instance_obj, field_counts), self.parser.line);
 
-        self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_redirected: false, redirect_pos: 0, rf_index: len, is_special: SpecialType::Null });
+        self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_special: SpecialType::Null });
     }
 
     pub fn struct_declare(&mut self) {
@@ -1235,7 +1225,7 @@ impl Compiler {
 
             self.parser.consume(TokenType::COMMA);
 
-            struct_obj.locals.push(Local { name: field_name, local_type: field_type, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+            struct_obj.locals.push(Local { name: field_name, local_type: field_type, is_special: SpecialType::Null });
         }
 
         // need to do that, because methods will not be compiled otherwise
@@ -1522,7 +1512,7 @@ impl Compiler {
                     self.parser.consume(TokenType::COMMA);
                 }
 
-                function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+                function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)), is_special: SpecialType::Null });
 
                 continue;
             }
@@ -1546,7 +1536,7 @@ impl Compiler {
             match arg_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
                     if self.parser.symbols[pos].name == "String" {
-                        function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::String });
+                        function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::String });
                     }else if self.parser.symbols[pos].name == "List" {
                         self.parser.consume(TokenType::LESS);
                         
@@ -1555,13 +1545,13 @@ impl Compiler {
 
                         self.parser.consume(TokenType::GREATER);
                         
-                        function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::List(list_type_value) });
+                        function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::List(list_type_value) });
                     }else {
-                        function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+                        function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::Null });
                     }
                 },
                 _ => {
-                    function.locals.push(Local { name: arg_name, local_type: arg_type , is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+                    function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::Null });
                 },
             };
 
@@ -1844,7 +1834,7 @@ impl Compiler {
             std::process::exit(1);
         }
         
-        self.get_cur_locals().push(Local { name: identifier, local_type: TokenType::INT, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+        self.get_cur_locals().push(Local { name: identifier, local_type: TokenType::INT, is_special: SpecialType::Null });
 
         self.parser.consume(TokenType::KEYWORD(Keywords::IN));
 
@@ -1873,7 +1863,7 @@ impl Compiler {
             std::process::exit(1);
         }
         
-        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_special: SpecialType::Null });
 
         if self.parser.cur.token_type != TokenType::RIGHT_PAREN {
             self.parser.consume(TokenType::COMMA);
@@ -1894,7 +1884,7 @@ impl Compiler {
             self.emit_byte(OpCode::CONSTANT_INT(pos), self.parser.line);
         }
 
-        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_redirected: false, redirect_pos: 0, rf_index: 0, is_special: SpecialType::Null });
+        self.get_cur_locals().push(Local { name: "".to_string(), local_type: TokenType::INT, is_special: SpecialType::Null });
 
         self.parser.consume(TokenType::RIGHT_PAREN);
 
