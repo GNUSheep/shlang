@@ -76,7 +76,9 @@ impl StringMethods {
 
         function.chunk.push_value(Value::String(String::new()));
         function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_special: SpecialType::String });
-        function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0, 0), line: 1});
+        function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_RF(0), line: 1});
+        function.chunk.push(Instruction { op: OpCode::INC_RC(0), line: 1});
+        function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_FIELD(0), line: 1});
         
         if arg_type == TokenType::STRING {
             for i in 1..arg_count {

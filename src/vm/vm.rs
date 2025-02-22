@@ -143,32 +143,44 @@ impl VM {
                 self.rc.push(Box::new(instance));
                 self.frames[self.ip].stack.push(Value::InstanceRef(heap_pos));
             },
-            OpCode::GET_INSTANCE_FIELD(pos, field_pos) => {
-                let instance_obj = match self.frames[self.ip].stack[pos] {
+            OpCode::GET_INSTANCE_FIELD(field_pos) => {
+                let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
                         self.rc.get_object(heap_pos)
                     }
                     _ => panic!("Error, this type of value shoudnt be here"),
                 };
+                instance_obj.dec_counter();
 
                 let field_value = instance_obj.get_values()[field_pos].clone();
                 match field_value {
-                    Value::StringRef(heap_pos) => self.rc.get_object(heap_pos).inc_counter(),
+                    Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => self.rc.get_object(heap_pos).inc_counter(),
                     _ => {},
                 }
                 
                 self.frames[self.ip].stack.push(field_value);
             },
-            OpCode::SET_INSTANCE_FIELD(pos, field_pos) => {
-                let len = self.frames[self.ip].stack.len() - 1;
-                let value = self.frames[self.ip].stack[len].clone();
+            OpCode::SET_INSTANCE_FIELD(field_pos) => {
+                let value = self.frames[self.ip].stack.pop().unwrap();
 
-                match self.frames[self.ip].stack[pos] {
+                let (heap_pos, field) = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
-                        self.rc.get_object(heap_pos).set_value(field_pos, value);
-                    }
+                        (heap_pos, self.rc.get_object(heap_pos).get_values()[field_pos].clone())
+                    },
                     _ => panic!("Error, this type of value shoudnt be here"),
                 };
+
+                self.rc.get_object(heap_pos).dec_counter();
+                
+                match field {
+                    Value::StringRef(field_heap_pos) | Value::InstanceRef(field_heap_pos) => {
+                        self.rc.get_object(field_heap_pos).dec_counter();
+                    },
+                    _ => {}
+                }
+
+                self.rc.get_object(heap_pos).set_value(field_pos, value);
+
             },
             OpCode::GET_INSTANCE_RF(pos) => {
                 let instance_rf = self.frames[self.ip].stack[pos].clone();

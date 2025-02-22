@@ -72,6 +72,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::LEFT_BRACKET, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::COMMA, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::DOT, ParseRule { prefix: None, infix: Some(Compiler::instance_call), prec: Precedence::CALL }),
 
         (TokenType::LEFT_PAREN, ParseRule { prefix: None, infix: Some(Compiler::fn_call), prec: Precedence::CALL }),
         (TokenType::RIGHT_PAREN, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
@@ -661,7 +662,29 @@ impl Compiler {
         }
 
         if self.parser.cur.token_type == TokenType::DOT {
-            self.instance_call();
+            let pos = self.get_local_pos(self.parser.prev.value.iter().collect::<String>());
+
+            let string_pos = self.get_struct_symbol_pos("String".to_string());
+
+            match self.get_cur_locals()[pos].local_type {
+                TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) => {
+                    if string_pos == struct_pos {            
+                        self.get_cur_chunk().push_value(Value::String(String::new()));
+                    } else {
+                        self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos));
+                    }
+                },
+                _ => {                    
+                    errors::error_message("COMPILING ERROR", format!("Cannot find root struct for instance {}:",
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
+                }
+            }
+                  
+            self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
+            self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
+            
             return
         }
 
@@ -848,8 +871,12 @@ impl Compiler {
                 self.get_cur_chunk().push_value(list_type);
             }
         } else if self.declaring_list {
-        } else if matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))){
+        } else if let TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) = self.get_cur_locals()[pos].local_type {
+            self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos));
+            self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
+
+            return
         }
 
         if self.changing_fn && matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_))) {
@@ -945,32 +972,29 @@ impl Compiler {
     }
 
     pub fn instance_call(&mut self) {
-        let name = self.parser.prev.value.iter().collect::<String>();
-
-        self.parser.consume(TokenType::DOT);
-
-        let instance_pos = self.get_local_pos(name.clone());
-
-        self.parser.consume(TokenType::IDENTIFIER);
-        let field_name = self.parser.prev.value.iter().collect::<String>();
-
-        let root_struct_name = match self.get_cur_locals()[instance_pos].local_type {
-            TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
-                self.parser.symbols[root_struct_pos].name.clone()
+        let root_struct_pos = match self.get_cur_chunk().get_last_value() {
+            Value::InstanceRef(struct_pos) => struct_pos,
+            Value::String(_) => {
+                self.get_struct_symbol_pos("String".to_string())
             },
             _ => {
-                errors::error_message("COMPILING ERROR", format!("Cannot find root struct for instance \"{}\" {}:",
-                    name,
+                errors::error_message("COMPILING ERROR", format!("Cannot extract root struct pos for instance {:?} {}:",
+                    self.get_cur_chunk().get_last_value(),
                     self.parser.line,
                 ));
                 std::process::exit(1);
-            },
+            }
         };
+    
+        self.parser.consume(TokenType::IDENTIFIER);
+        let field_name = self.parser.prev.value.iter().collect::<String>();
+
+        let root_struct_name = self.parser.symbols[root_struct_pos].name.clone();
 
         if self.parser.cur.token_type == TokenType::LEFT_PAREN {
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
-                    self.mth_call(mth.output_type, mth.arg_count, name.clone(), mth.is_self_arg);
+                    self.mth_call(mth.output_type, mth.arg_count);
                 },
                 None => {
                     errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
@@ -988,6 +1012,7 @@ impl Compiler {
                 },
                 _ => {},
             }
+
             return
         }
 
@@ -1024,8 +1049,7 @@ impl Compiler {
                 std::process::exit(1);
             }
 
-            self.emit_byte(OpCode::SET_INSTANCE_FIELD(instance_pos as usize, field_index as usize), self.parser.line);
-            self.emit_byte(OpCode::POP, self.parser.line);
+            self.emit_byte(OpCode::SET_INSTANCE_FIELD(field_index as usize), self.parser.line);
 
             let pos = self.get_cur_chunk().push_value(Value::Null);            
             self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
@@ -1040,6 +1064,9 @@ impl Compiler {
                 TokenType::STRING => {
                     self.get_cur_chunk().push_value(Value::String(String::new()));
                 },
+                TokenType::STRUCT(pos) => {
+                    self.get_cur_chunk().push_value(Value::InstanceRef(pos));
+                }
                 TokenType::BOOL => {
                     self.get_cur_chunk().push_value(Value::Bool(true));
                 },
@@ -1049,7 +1076,7 @@ impl Compiler {
                 _ => {},
             }
 
-            self.emit_byte(OpCode::GET_INSTANCE_FIELD(instance_pos as usize, field_index as usize), self.parser.line);
+            self.emit_byte(OpCode::GET_INSTANCE_FIELD(field_index as usize), self.parser.line);
         }
     }
 
@@ -1068,7 +1095,6 @@ impl Compiler {
             std::process::exit(1);
         }
         self.parser.consume(TokenType::EQ);
-
         if self.parser.cur.token_type != TokenType::LEFT_BRACE {
             if self.parser.cur.token_type == TokenType::STRING {
                 self.expression();
@@ -1103,8 +1129,8 @@ impl Compiler {
                 .map(|(index, _)| index as i32)
                 .unwrap_or(-1);
 
-            self.parser.consume(TokenType::IDENTIFIER);
             if pos != -1 {
+                self.parser.consume(TokenType::IDENTIFIER);
                 let output_symbol_pos = match self.parser.symbols[pos as usize].output_type {
                     TokenType::STRUCT(root_pos) => root_pos,
                     TokenType::STRING => self.get_struct_symbol_pos("String".to_string()),
@@ -1141,15 +1167,38 @@ impl Compiler {
                 return
             }
 
-            let pos = self.get_local_pos(value);
+            self.expression();
 
-            let local_type = self.get_cur_locals()[pos].local_type;
-            let is_special = self.get_cur_locals()[pos].is_special.clone();
+            let local_type = TokenType::KEYWORD(Keywords::INSTANCE(var_pos));
 
+            let is_special = match &self.parser.symbols[var_pos].name as &str {
+                "String" => SpecialType::String,
+                // "List" => SpecialType::List()
+                _ => SpecialType::Null,
+            };
+        
+            let value_pos = match self.get_cur_chunk().get_last_value().convert() {
+                TokenType::STRING => {
+                    self.get_struct_symbol_pos("String".to_string())
+                },
+                TokenType::STRUCT(pos) => pos,
+                _ => {
+                        println!("CHECK THIS TYPE OF ERRORS line 1181 in compiler.rs {:?}", self.get_cur_chunk().get_last_value());
+                        std::process::exit(1);                            
+                }
+            };
+            
+            if var_pos != value_pos {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring instance, expected: {:?} found: {:?} {}:",
+                    self.parser.symbols[var_pos].name.clone(),
+                    self.get_cur_chunk().get_last_value().convert(),
+                    self.parser.line,
+                ));
+                std::process::exit(1);
+            }
+
+           
             self.get_cur_locals().push(Local{ name: name.clone(), local_type, is_special });
-
-            self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
-            self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
 
             return
         }
@@ -1211,11 +1260,27 @@ impl Compiler {
             self.parser.consume(TokenType::IDENTIFIER);
 
             let field_name = self.parser.prev.value.iter().collect::<String>();
-
             self.parser.consume(TokenType::COLON);
 
             let field_type = match self.parser.cur.token_type {
                 TokenType::KEYWORD(keyword) => keyword.convert(),
+                TokenType::IDENTIFIER => {
+                    let struct_name = self.parser.cur.value.iter().collect::<String>();
+                    
+                    let pos = self.parser.symbols
+                        .iter()
+                        .enumerate()
+                        .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+                        .map(|(index, _)| index as i32)
+                        .unwrap_or(-1);
+
+                    if pos == -1 {
+                        errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
+                        std::process::exit(1);
+                    }
+
+                    TokenType::STRUCT(pos as usize)
+                }
                 _ => {
                     errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
                     std::process::exit(1);
@@ -1249,14 +1314,8 @@ impl Compiler {
         self.scope_depth -= 1;
     }
 
-    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, instance_name: String, is_self: bool) {
+    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize) {
         self.parser.consume(TokenType::LEFT_PAREN);
-        if is_self {
-            let pos = self.get_local_pos(instance_name);
-
-            self.emit_byte(OpCode::GET_INSTANCE_RF(pos), self.parser.line);
-            self.emit_byte(OpCode::INC_RC(pos), self.parser.line);
-        }
 
         let mut arg_count = 0;
         self.changing_fn = true;

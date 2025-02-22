@@ -39,9 +39,21 @@ impl ReferenceCounter {
         obj.dec_counter();
     }
 
+    fn dec_values(&mut self, index: usize) {
+        for field_obj in self.get_object(index).get_values() {
+            match field_obj {
+                Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => {
+                    self.get_object(heap_pos).dec_counter();
+                }
+                _ => {},
+            }
+        }
+    }
+
     pub fn remove(&mut self) {
         for i in (0..self.heap.len()).rev() {
             if self.get_object(i).get_rc_counter() == 0 {
+                self.dec_values(i);
                 self.heap[i] = Box::new(EmptyObject{});
             }
         }

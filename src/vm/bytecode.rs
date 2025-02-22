@@ -12,8 +12,8 @@ pub enum OpCode {
     
     STRUCT_DEC(structs::Struct),
     INSTANCE_DEC(structs::StructInstance, usize),
-    GET_INSTANCE_FIELD(usize, usize),
-    SET_INSTANCE_FIELD(usize, usize),
+    GET_INSTANCE_FIELD(usize),
+    SET_INSTANCE_FIELD(usize),
     GET_INSTANCE_RF(usize),
     METHOD_CALL(functions::Function),
 
