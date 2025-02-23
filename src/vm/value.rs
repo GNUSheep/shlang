@@ -14,9 +14,6 @@ pub enum Value {
     Bool(bool),
     Null,
     String(String),
-    List,
-    ListObj(Vec<Value>),
-    InstanceObj(Vec<Value>),
     Chunk(Chunk),
     InstanceRef(usize),
     StringRef(usize),
@@ -125,7 +122,6 @@ impl Convert for Value {
             Value::Null => TokenType::NULL,
             Value::String(_) => TokenType::STRING,
             Value::InstanceRef(val) => TokenType::STRUCT(val), 
-            Value::List | Value::ListObj(_) => TokenType::LIST,
             _ => {
                 errors::conversion_error("Enum Value<_>", "TokenType");
                 std::process::exit(1);
@@ -141,10 +137,9 @@ impl std::fmt::Display for Value {
             Value::Int(val) => write!(output, "{}", val),
             Value::Bool(val) => write!(output, "{}", val),
             Value::String(val) => write!(output, "{}", val),
-            Value::ListObj(val) => write!(output, "{:?}", val),
             Value::Null => write!(output, "null"),
             Value::InstanceRef(_) => {
-                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"Struct Object\" to stdout is not allowed"));
+                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"Struct/List Object\" to stdout is not allowed"));
                 std::process::exit(1);
             },
             v => {

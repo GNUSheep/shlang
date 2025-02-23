@@ -188,10 +188,84 @@ impl VM {
             },
  
             OpCode::GET_LIST_FIELD(pos) => {
+                let instance_obj = match self.frames[self.ip].stack[pos] {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: GET LIST FIELD"),
+                };
+
+                // instance_obj.dec_counter();
+
+                let field_pos = match self.frames[self.ip].stack.pop() {
+                    Some(Value::Int(val)) => {
+                        if val < 0 {     
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - Index cannot be negative {}:", instruction.line));
+                            std::process::exit(1);
+                        };
+
+                        if val as usize >= instance_obj.get_values().len() {
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - List index out of range  {}/{} {}:", val, instance_obj.get_values().len(), instruction.line));
+                            std::process::exit(1);
+                        }
+                        
+                        val as usize
+                    }
+                    _ => {                        
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        std::process::exit(1);
+                    },
+                };
+
+                let field_value = instance_obj.get_values()[field_pos].clone();
+
+                match field_value {
+                    Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => self.rc.get_object(heap_pos).inc_counter(),
+                    _ => {},
+                }
+                
+                self.frames[self.ip].stack.push(field_value);
             },
-            OpCode::GET_LIST(pos) => {
-            },
-            OpCode::SET_LIST_FIELD(pos) => {                
+            OpCode::SET_LIST_FIELD(pos) => {
+                let value = self.frames[self.ip].stack.pop().unwrap();
+
+                let field_pos = match self.frames[self.ip].stack.pop() {
+                    Some(Value::Int(val)) => {
+                        if val < 0 {     
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - Index cannot be negative {}:", instruction.line));
+                            std::process::exit(1);
+                        };
+                       
+                        val as usize
+                    }
+                    _ => {                        
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        std::process::exit(1);
+                    },
+                };
+
+                let (heap_pos, field_value) = match self.frames[self.ip].stack[pos] {
+                    Value::InstanceRef(heap_pos) => {
+                        (heap_pos, self.rc.get_object(heap_pos).get_values()[field_pos].clone())
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: GET LIST FIELD"),
+                };
+
+                if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
+                    errors::error_message("RUNTIME - VM ERROR", 
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
+                    std::process::exit(1);
+                }
+                
+                match field_value {
+                    Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => self.rc.get_object(heap_pos).dec_counter(),
+                    _ => {},
+                }
+                
+                self.rc.get_object(heap_pos).set_value(field_pos, value);
             },
 
             OpCode::METHOD_CALL(mth) => {

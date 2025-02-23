@@ -294,7 +294,6 @@ pub struct Compiler {
     loop_info: LoopInfo,
     structs: HashMap<String, Struct>,
     changing_fn: bool,
-    declaring_list: bool,
 }
 
 impl Compiler {
@@ -316,7 +315,6 @@ impl Compiler {
             loop_info: LoopInfo::new(),
             structs: HashMap::new(),
             changing_fn: false,
-            declaring_list: false,
         }
     }
 
@@ -613,7 +611,6 @@ impl Compiler {
 
         let mut field_count = 0;
 
-        self.declaring_list = true;
         self.parser.consume(TokenType::LEFT_BRACKET);        
         while self.parser.cur.token_type != TokenType::RIGHT_BRACKET {
             self.expression();
@@ -644,15 +641,12 @@ impl Compiler {
             field_count += 1;
         }
         self.parser.consume(TokenType::RIGHT_BRACKET);       
-        self.declaring_list = false;
         
         self.emit_byte(OpCode::INSTANCE_DEC(list_obj, field_count), self.parser.line);
 
         let list_type_value = self.get_list_type_value(list_type_token);
 
-        self.get_cur_instances().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_special: SpecialType::List(list_type_value) });
-
-        self.parser.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), output_type: list_type, arg_count: 0 })
+        self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_special: SpecialType::List(list_type_value) });
     }
     
     pub fn identifier(&mut self) {
@@ -823,55 +817,52 @@ impl Compiler {
 
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
-        }else if matches!(self.get_cur_locals()[pos as usize].is_special, SpecialType::List(_)) && !self.changing_fn {
-            if self.parser.cur.token_type != TokenType::LEFT_BRACKET {
-                self.get_cur_chunk().push_value(Value::List);
-
-                self.emit_byte(OpCode::GET_LIST(pos as usize), self.parser.line);
-            }else {
-                let list_type = match self.get_cur_instances()[pos as usize].is_special.clone() {
-                    SpecialType::List(val) => val,
-                    _ => {
-                        errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
-                            self.get_cur_instances()[pos as usize].is_special.clone(),
-                            self.parser.line,
-                        ));
-                        std::process::exit(1);
-                    }
-                };
+        }else if matches!(self.get_cur_locals()[pos as usize].is_special, SpecialType::List(_)) && self.parser.cur.token_type == TokenType::LEFT_BRACKET {
+             let list_type = match self.get_cur_locals()[pos as usize].is_special.clone() {
+                 SpecialType::List(val) => val,
+                 _ => {
+                     errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
+                         self.get_cur_instances()[pos as usize].is_special.clone(),
+                         self.parser.line,
+                     ));
+                     std::process::exit(1);
+                 }
+             };
             
-                self.parser.consume(TokenType::LEFT_BRACKET);
+             self.parser.consume(TokenType::LEFT_BRACKET);
+             self.expression();
+             self.parser.consume(TokenType::RIGHT_BRACKET);
+
+             if self.parser.cur.token_type == TokenType::EQ {
+                self.parser.consume(TokenType::EQ);
+
                 self.expression();
-                self.parser.consume(TokenType::RIGHT_BRACKET);
 
-                if self.parser.cur.token_type == TokenType::EQ {
-                    self.parser.consume(TokenType::EQ);
+                if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
+                     let value_type = self.get_cur_chunk().get_last_value().convert();
 
-                    self.expression();
-
-                    if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
-                        let value_type = self.get_cur_chunk().get_last_value().convert();
-
-                        errors::error_message("COMPILER ERROR",
-                            format!("Expected to find {:?} but found: {:?} {}:", 
-                            list_type.convert(), 
-                            value_type,
-                            self.parser.line
-                        ));
-                        std::process::exit(1);
-                    }
-        
-                    self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
-                
-                    return
+                     errors::error_message("COMPILER ERROR",
+                         format!("Expected to find {:?} but found: {:?} {}:", 
+                         list_type.convert(), 
+                         value_type,
+                         self.parser.line
+                     ));
+                     std::process::exit(1);
                 }
-                
-                self.emit_byte(OpCode::GET_LIST_FIELD(pos as usize), self.parser.line);
+        
+                self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
 
-                self.get_cur_chunk().push_value(list_type);
-            }
-        } else if self.declaring_list {
-        } else if let TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) = self.get_cur_locals()[pos].local_type {
+                let pos = self.get_cur_chunk().push_value(Value::Null);            
+                self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
+             
+                return
+             }
+             
+             self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
+             self.get_cur_chunk().push_value(list_type);
+
+             return
+        }  else if let TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) = self.get_cur_locals()[pos].local_type {
             self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos));
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
@@ -1173,7 +1164,6 @@ impl Compiler {
 
             let is_special = match &self.parser.symbols[var_pos].name as &str {
                 "String" => SpecialType::String,
-                // "List" => SpecialType::List()
                 _ => SpecialType::Null,
             };
         
