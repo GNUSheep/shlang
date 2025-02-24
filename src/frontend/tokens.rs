@@ -1,4 +1,4 @@
-use crate::vm::value::Convert;
+use crate::vm::value::{Value, Convert};
 use crate::compiler::errors;
 
 use std::fmt;
@@ -11,7 +11,7 @@ pub struct Token {
     pub line: u32,
 }
 
-#[derive(Debug, PartialEq, Copy, Clone, Eq, Hash)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq, Hash)]
 #[allow(non_camel_case_types)]
 pub enum TokenType {
     LEFT_PAREN,
@@ -42,6 +42,7 @@ pub enum TokenType {
     KEYWORD(Keywords),
     NATIVE_FN,
     STRUCT(usize),
+    LIST(Keywords),
     INT,
     FLOAT,
     BOOL,
@@ -135,6 +136,7 @@ impl Convert for Keywords {
             Keywords::FLOAT => TokenType::FLOAT,
             Keywords::TRUE | Keywords::FALSE | Keywords::BOOL => TokenType::BOOL,
             Keywords::STRING => TokenType::STRING,
+            Keywords::INSTANCE(pos) => TokenType::STRUCT(pos.clone()),
             _ => {
                 errors::conversion_error("Enum Keyword<_>", "TokenType");
                 std::process::exit(1);

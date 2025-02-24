@@ -173,6 +173,37 @@ impl Parser {
         self.advance();
     }
 
+    pub fn list_type_value(symbols: &Vec<Symbol>, token: Token, obj_name: String, line: u32) -> Keywords {
+        let list_type = match token.token_type {
+            TokenType::KEYWORD(key) => key,
+            TokenType::IDENTIFIER => {
+                let struct_name = token.value.iter().collect::<String>();
+
+                let pos = symbols
+                    .iter()
+                    .enumerate()
+                    .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+                    .map(|(index, _)| index as i32)
+                    .unwrap_or(-1);
+                 
+                if pos == -1 {
+                    errors::error_message("COMPILER ERROR",
+                    format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", obj_name, line));
+                    std::process::exit(1);
+                }
+
+                Keywords::INSTANCE(pos as usize)
+            },
+            t => {
+                errors::error_message("COMPILER ERROR",
+                    format!("Unexpected list type {:?} {}:", t, line));
+                std::process::exit(1);
+            }
+        };
+
+        list_type
+    }
+
     pub fn get_symbols(&mut self, string_mths_offset: usize, list_mths_offset: usize) {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
 
@@ -228,29 +259,43 @@ impl Parser {
                             TokenType::KEYWORD(Keywords::BOOL) => TokenType::BOOL,
                             TokenType::KEYWORD(Keywords::STRING) => TokenType::STRING,
                             TokenType::IDENTIFIER => {
-                                let struct_name = val.value.iter().collect::<String>();
-                                
-                                let pos = symbols
-                                    .iter()
-                                    .enumerate()
-                                    .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
-                                    .map(|(index, _)| index as i32)
-                                    .unwrap_or(-1);
-                                
-                                if pos == -1 {
-                                    errors::error_message("COMPILER ERROR",
-                                    format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", struct_name, self.line));
-                                    std::process::exit(1);
+                                let obj_name = val.value.iter().collect::<String>();
+
+                                if obj_name == "List" {
+                                    iter.next();
+
+                                    let token = if let Some(token) = iter.next() { token }
+                                    else {
+                                        errors::error_message("COMPILER ERROR",
+                                            format!("Expected to find a list type after \"<\" {}:", self.line));
+                                        std::process::exit(1);
+                                    };
+
+                                    let list_type = Self::list_type_value(&symbols, token.clone(), obj_name, self.line.clone()).clone();
+                                    iter.next();                                        
+                                    TokenType::LIST(list_type)
+                                } else {
+                                    let pos = symbols
+                                        .iter()
+                                        .enumerate()
+                                        .find(|(_, name)| *name.name == obj_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+                                        .map(|(index, _)| index as i32)
+                                        .unwrap_or(-1);
+
+                                    if pos == -1 {
+                                        errors::error_message("COMPILER ERROR",
+                                        format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", obj_name, self.line));
+                                        std::process::exit(1);
+                                    }
+
+                                    TokenType::STRUCT(pos as usize)
                                 }
-                        
-                                TokenType::STRUCT(pos as usize)
                             },
                             _ => TokenType::NULL,
                         }                        
                     },
                     None => break 'l,
                 };
-
                 symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count });
             }
 
@@ -606,7 +651,76 @@ impl Compiler {
         self.parser.consume(TokenType::GREATER);
         self.parser.consume(TokenType::EQ);
 
-        let pos = self.get_struct_symbol_pos("List".to_string());
+        let var_pos = self.get_struct_symbol_pos("List".to_string());
+
+        if self.parser.cur.token_type == TokenType::IDENTIFIER {
+            let value = self.parser.cur.value.iter().collect::<String>();
+
+            let pos = self.parser.symbols
+                .iter()
+                .enumerate()
+                .find(|(_, name)| *name.name == value && name.symbol_type != TokenType::KEYWORD(Keywords::STRUCT))
+                .map(|(index, _)| index as i32)
+                .unwrap_or(-1);
+
+            if pos != -1 {
+                self.parser.consume(TokenType::IDENTIFIER);
+                let output_type = match self.parser.symbols[pos as usize].output_type {
+                    TokenType::LIST(t) => {
+                        t.convert()
+                    },
+                    _ => {
+                        println!("CHECK THIS TYPE OF ERRORS line 624 in compiler.rs {:?}", self.parser.symbols[pos as usize]);
+                        std::process::exit(1);                            
+                    }
+                };
+                
+                self.symbol_to_hold = pos as usize;
+                self.parser.consume(TokenType::LEFT_PAREN);
+
+                if output_type != list_type {
+                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning list instance, expected: {:?} found: {:?} {}:",
+                        list_type,
+                        output_type,
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
+                }
+                
+                self.fn_call();
+
+                let list_type_value = self.get_list_type_value(list_type_token);
+                self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_special: SpecialType::List(list_type_value) });                
+
+                return
+            }
+
+            self.expression();
+
+            let value_type = match self.get_cur_chunk().get_last_value() {
+                Value::List(val) => val,
+                _ => {
+                        println!("CHECK THIS TYPE OF ERRORS line 663 in compiler.rs {:?}", self.get_cur_chunk().get_last_value());
+                        std::process::exit(1);
+                }
+            };
+
+            if list_type != value_type {
+                errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring list, expected: \"{:?}\" found: {:?} {}:",
+                    list_type,
+                    value_type,
+                    self.parser.line,
+                ));
+                std::process::exit(1);
+            }
+
+            let list_type_value = self.get_list_type_value(list_type_token);
+
+            self.get_cur_locals().push(Local{ name: name.clone(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_special: SpecialType::List(list_type_value) });
+
+            return
+        }
+
         let list_obj = StructInstance::new();
 
         let mut field_count = 0;
@@ -646,7 +760,7 @@ impl Compiler {
 
         let list_type_value = self.get_list_type_value(list_type_token);
 
-        self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(pos)), is_special: SpecialType::List(list_type_value) });
+        self.get_cur_locals().push(Local{ name, local_type: TokenType::KEYWORD(Keywords::INSTANCE(var_pos)), is_special: SpecialType::List(list_type_value) });
     }
     
     pub fn identifier(&mut self) {
@@ -863,7 +977,11 @@ impl Compiler {
 
              return
         }  else if let TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) = self.get_cur_locals()[pos].local_type {
-            self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos));
+            let _ = match self.get_cur_locals()[pos].is_special.clone() {
+                SpecialType::List(v) => self.get_cur_chunk().push_value(Value::List(v.convert())),
+                _ => self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos)),
+            };
+
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
 
@@ -969,7 +1087,7 @@ impl Compiler {
                 self.get_struct_symbol_pos("String".to_string())
             },
             _ => {
-                errors::error_message("COMPILING ERROR", format!("Cannot extract root struct pos for instance {:?} {}:",
+                errors::error_message("COMPILING ERROR", format!("Type doesn't contains any fields: {:?} {}:",
                     self.get_cur_chunk().get_last_value(),
                     self.parser.line,
                 ));
@@ -1521,6 +1639,21 @@ impl Compiler {
                 TokenType::STRUCT(val) => {
                     self.get_cur_chunk().push_value(Value::InstanceRef(val));  
                 },
+                TokenType::LIST(keyword) => {
+                    let out = match keyword {
+                        Keywords::INT => TokenType::INT,
+                        Keywords::FLOAT => TokenType::FLOAT,
+                        Keywords::BOOL => TokenType::BOOL,
+                        Keywords::STRING => TokenType::STRING,
+                        Keywords::INSTANCE(pos) => TokenType::STRUCT(pos),
+                        t => {
+                            errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", t, self.parser.line));
+                            std::process::exit(1);
+                        }
+                    };
+
+                    self.get_cur_chunk().push_value(Value::List(out));                                       
+                },
                 output_type => {
                     errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
                     std::process::exit(1);
@@ -1629,26 +1762,40 @@ impl Compiler {
             TokenType::IDENTIFIER => {
                 let val = self.parser.cur.value.iter().collect::<String>();
 
-                if !self.structs.contains_key(&val) {
-                    errors::error_message("COMPILER ERROR", format!("Unexpected return type {:?} {}:", self.parser.cur.token_type, self.parser.line));
-                    std::process::exit(1);
+                if val == "List" {
+                    self.parser.consume(TokenType::IDENTIFIER);
+                    self.parser.consume(TokenType::LESS);
+
+                    let list_type = self::Parser::list_type_value(&self.parser.symbols, self.parser.cur.clone(), val.clone(), self.parser.line);
+
+                    function.output_type = TokenType::LIST(list_type);
+
+                    self.parser.advance();
+
+                    self.parser.consume(TokenType::GREATER);
+                } else {
+                    
+                    if !self.structs.contains_key(&val) {
+                        errors::error_message("COMPILER ERROR", format!("Unexpected return type {:?} {}:", self.parser.cur.token_type, self.parser.line));
+                        std::process::exit(1);
+                    }
+                    
+                    let pos = self.get_struct_symbol_pos(val);
+                    function.output_type = TokenType::STRUCT(pos);  
+                    
+                    self.parser.consume(TokenType::IDENTIFIER);
                 }
-                
-                let pos = self.get_struct_symbol_pos(val);
-                function.output_type = TokenType::STRUCT(pos);  
-                
-                self.parser.consume(TokenType::IDENTIFIER)
             },
             _ => {
                 function.output_type = TokenType::NULL;
             }
         };
-        
+
         if !is_mth {
             // This if stmt is left, because of tests on reference counting, it should never panic
             let fn_pos = self.get_fn_symbol_pos(function.name.clone());
             if function.output_type != self.parser.symbols[fn_pos].output_type {
-                println!("{:?} {:?}", function.output_type,self.parser.symbols[fn_pos].symbol_type);
+                println!("{:?} {:?}", function.output_type, self.parser.symbols[fn_pos].output_type);
                 panic!()
             }
         }
@@ -1716,10 +1863,23 @@ impl Compiler {
                 self.get_cur_locals()[index].local_type
             },
             OpCode::GET_INSTANCE_RF(index) => {
-                self.emit_byte(OpCode::INC_RC(index), self.parser.line);
                 match self.get_cur_locals()[index].local_type {
                     TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
-                        TokenType::STRUCT(pos)
+                        if let SpecialType::List(list_type) = self.get_cur_locals()[index].is_special.clone() {
+                            let token = match list_type.convert() {
+                                TokenType::INT => Keywords::INT,
+                                TokenType::FLOAT => Keywords::FLOAT,
+                                TokenType::BOOL => Keywords::BOOL,
+                                TokenType::STRING => Keywords::STRING,
+                                TokenType::STRUCT(pos) => Keywords::INSTANCE(pos),
+                                _ => panic!("never should happen"),
+                            };
+
+                            TokenType::LIST(token)                            
+                        } else {                        
+                            TokenType::STRUCT(pos)
+                        }
+                        
                     }
                     _ => panic!("Unexpected token in return stmt for Instance Ref")
                 }

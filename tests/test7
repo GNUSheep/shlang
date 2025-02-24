@@ -1,0 +1,20 @@
+struct Foo {
+    x: int,
+    s: String,
+}
+
+fn main() {
+    var x: List<Foo> = boo()
+
+    println(x[1].s)
+}
+
+fn boo() List<Foo> {
+    var a: Foo = {2,"paw"}
+    var r: Foo = {12,"kaw"}
+    var l: Foo = {5,"xs"}
+
+    var x: List<Foo> = [a]
+    var p: List<Foo> = [a, l]
+    return p
+}
