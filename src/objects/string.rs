@@ -74,6 +74,10 @@ impl StringMethods {
         function.is_self_arg = true;
         function.arg_count = arg_count - 1;
 
+        for _ in 1..arg_count {
+            function.arg_type.push(arg_type);
+        }
+
         function.chunk.push_value(Value::String(String::new()));
         function.locals.push(Local { name: "self".to_string(), local_type: TokenType::KEYWORD(Keywords::INSTANCE(3)), is_special: SpecialType::String });
         function.chunk.push(Instruction { op: OpCode::GET_INSTANCE_RF(0), line: 1});

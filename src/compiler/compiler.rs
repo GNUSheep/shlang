@@ -204,9 +204,54 @@ impl Parser {
         list_type
     }
 
-    pub fn get_symbols(&mut self, string_mths_offset: usize, list_mths_offset: usize) {
+    pub fn get_token_type(val: Token, iter: &mut std::slice::IterMut<Token>, symbols: &Vec<Symbol>, line: u32) -> TokenType { 
+        match val.token_type {
+            TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
+            TokenType::KEYWORD(Keywords::FLOAT) => TokenType::FLOAT,
+            TokenType::KEYWORD(Keywords::BOOL) => TokenType::BOOL,
+            TokenType::KEYWORD(Keywords::STRING) => TokenType::STRING,
+            TokenType::IDENTIFIER => {
+                let obj_name = val.value.iter().collect::<String>();
+
+                if obj_name == "List" {
+                    iter.next();
+
+                    let token = if let Some(token) = iter.next() { token }
+                    else {
+                        errors::error_message("COMPILER ERROR",
+                            format!("Expected to find a list type after \"<\" {}:", line));
+                        std::process::exit(1);
+                    };
+
+                    let list_type = Self::list_type_value(&symbols, token.clone(), obj_name, line.clone()).clone();
+                    iter.next();                                        
+                    TokenType::LIST(list_type)
+                } else {
+                    let pos = symbols
+                        .iter()
+                        .enumerate()
+                        .find(|(_, name)| *name.name == obj_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+                        .map(|(index, _)| index as i32)
+                        .unwrap_or(-1);
+
+                    if pos == -1 {
+                        errors::error_message("COMPILER ERROR",
+                        format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", obj_name, line));
+                        std::process::exit(1);
+                    }
+
+                    TokenType::STRUCT(pos as usize)
+                }
+            }
+            _ => TokenType::NULL,
+        }                        
+    }
+
+    pub fn get_symbols_and_functions(&mut self, string_mths_offset: usize, list_mths_offset: usize) -> HashMap<String, Function> {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
 
+        let mut functions: HashMap<String, Function> = HashMap::new();
+        
         symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
 
         for _ in 0..string_mths_offset { 
@@ -223,7 +268,7 @@ impl Parser {
 
         let mut iter = self.tokens.iter_mut();
         'l: while let Some(token) = iter.next()  {
-            if token.token_type == TokenType::KEYWORD(Keywords::FN) {
+            if token.token_type == TokenType::KEYWORD(Keywords::FN) {               
                 let fn_name = match iter.next() {
                     Some(val) => {
                         if val.token_type == TokenType::EOF { break 'l };
@@ -231,6 +276,8 @@ impl Parser {
                     },
                     None => break 'l,
                 };
+
+                let mut function = Function::new(fn_name.clone());
 
                 if symbols.iter().any(| symbol | symbol.name == fn_name) {
                     errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token.line));
@@ -244,7 +291,14 @@ impl Parser {
                 let mut arg_count = 0;
                 'args: while let Some(tok) = iter.next() {
                     match tok.token_type {
-                        TokenType::COLON => arg_count += 1,
+                        TokenType::COLON => {
+                            if let Some(val) = iter.next() {
+                                let arg_type = Parser::get_token_type(val.clone(), &mut iter, &symbols, self.line);
+                                function.arg_type.push(arg_type);
+                            }
+                            
+                            arg_count += 1;
+                        },
                         TokenType::RIGHT_PAREN | TokenType::EOF => break 'args,
                         _ => {},
                     }
@@ -253,49 +307,12 @@ impl Parser {
                 let out_type = match iter.next() {
                     Some(val) => {
                         if val.token_type == TokenType::EOF { break 'l };
-                        match val.token_type {
-                            TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
-                            TokenType::KEYWORD(Keywords::FLOAT) => TokenType::FLOAT,
-                            TokenType::KEYWORD(Keywords::BOOL) => TokenType::BOOL,
-                            TokenType::KEYWORD(Keywords::STRING) => TokenType::STRING,
-                            TokenType::IDENTIFIER => {
-                                let obj_name = val.value.iter().collect::<String>();
-
-                                if obj_name == "List" {
-                                    iter.next();
-
-                                    let token = if let Some(token) = iter.next() { token }
-                                    else {
-                                        errors::error_message("COMPILER ERROR",
-                                            format!("Expected to find a list type after \"<\" {}:", self.line));
-                                        std::process::exit(1);
-                                    };
-
-                                    let list_type = Self::list_type_value(&symbols, token.clone(), obj_name, self.line.clone()).clone();
-                                    iter.next();                                        
-                                    TokenType::LIST(list_type)
-                                } else {
-                                    let pos = symbols
-                                        .iter()
-                                        .enumerate()
-                                        .find(|(_, name)| *name.name == obj_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
-                                        .map(|(index, _)| index as i32)
-                                        .unwrap_or(-1);
-
-                                    if pos == -1 {
-                                        errors::error_message("COMPILER ERROR",
-                                        format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", obj_name, self.line));
-                                        std::process::exit(1);
-                                    }
-
-                                    TokenType::STRUCT(pos as usize)
-                                }
-                            },
-                            _ => TokenType::NULL,
-                        }                        
+                        Parser::get_token_type(val.clone(), &mut iter, &symbols, self.line)
                     },
                     None => break 'l,
                 };
+
+                functions.insert(fn_name.clone(), function);
                 symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count });
             }
 
@@ -323,6 +340,7 @@ impl Parser {
         }
 
         self.symbols = symbols;
+        functions
     }
 
     pub fn get_rule(&self, token_type: &TokenType) -> &ParseRule {
@@ -932,53 +950,66 @@ impl Compiler {
             self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
             self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
         }else if matches!(self.get_cur_locals()[pos as usize].is_special, SpecialType::List(_)) && self.parser.cur.token_type == TokenType::LEFT_BRACKET {
-             let list_type = match self.get_cur_locals()[pos as usize].is_special.clone() {
-                 SpecialType::List(val) => val,
-                 _ => {
-                     errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
-                         self.get_cur_instances()[pos as usize].is_special.clone(),
-                         self.parser.line,
-                     ));
-                     std::process::exit(1);
-                 }
-             };
+            let list_type = match self.get_cur_locals()[pos as usize].is_special.clone() {
+                SpecialType::List(val) => val,
+                _ => {
+                    errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
+                        self.get_cur_instances()[pos as usize].is_special.clone(),
+                        self.parser.line,
+                    ));
+                    std::process::exit(1);
+                }
+            };
             
-             self.parser.consume(TokenType::LEFT_BRACKET);
-             self.expression();
-             self.parser.consume(TokenType::RIGHT_BRACKET);
+            self.parser.consume(TokenType::LEFT_BRACKET);
+            self.expression();
 
-             if self.parser.cur.token_type == TokenType::EQ {
+            if self.get_cur_chunk().get_last_value().convert() != TokenType::INT {
+                let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                errors::error_message("COMPILER ERROR",
+                    format!("Expected to find INT as index but found: {:?} {}:",  
+                    value_type,
+                    self.parser.line
+                ));
+                std::process::exit(1);
+            }
+        
+            self.parser.consume(TokenType::RIGHT_BRACKET);
+
+            if self.parser.cur.token_type == TokenType::EQ {
                 self.parser.consume(TokenType::EQ);
 
                 self.expression();
 
                 if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
-                     let value_type = self.get_cur_chunk().get_last_value().convert();
+                    let value_type = self.get_cur_chunk().get_last_value().convert();
 
-                     errors::error_message("COMPILER ERROR",
-                         format!("Expected to find {:?} but found: {:?} {}:", 
-                         list_type.convert(), 
-                         value_type,
-                         self.parser.line
-                     ));
-                     std::process::exit(1);
+                    errors::error_message("COMPILER ERROR",
+                        format!("Expected to find {:?} but found: {:?} {}:", 
+                        list_type.convert(), 
+                        value_type,
+                        self.parser.line
+                    ));
+                    std::process::exit(1);
                 }
         
                 self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
 
                 let pos = self.get_cur_chunk().push_value(Value::Null);            
                 self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
-             
+            
                 return
-             }
-             
-             self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
-             self.get_cur_chunk().push_value(list_type);
+            }
+            
+            self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
+            self.get_cur_chunk().push_value(list_type);
 
-             return
+            return
         }  else if let TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) = self.get_cur_locals()[pos].local_type {
             let _ = match self.get_cur_locals()[pos].is_special.clone() {
                 SpecialType::List(v) => self.get_cur_chunk().push_value(Value::List(v.convert())),
+                SpecialType::String => self.get_cur_chunk().push_value(Value::String(String::new())),
                 _ => self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos)),
             };
 
@@ -1103,7 +1134,7 @@ impl Compiler {
         if self.parser.cur.token_type == TokenType::LEFT_PAREN {
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
-                    self.mth_call(mth.output_type, mth.arg_count);
+                    self.mth_call(mth.output_type, mth.arg_count, mth.arg_type.clone());
                 },
                 None => {
                     errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
@@ -1422,7 +1453,7 @@ impl Compiler {
         self.scope_depth -= 1;
     }
 
-    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize) {
+    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, mth_arg_types: Vec<TokenType>) {
         self.parser.consume(TokenType::LEFT_PAREN);
 
         let mut arg_count = 0;
@@ -1431,6 +1462,21 @@ impl Compiler {
             arg_count += 1;
             
             self.expression();
+
+            if mth_arg_types.len() > arg_count - 1 {
+                if mth_arg_types[arg_count - 1] != self.get_cur_chunk().get_last_value().convert() {
+                    let mth_arg_error = match mth_arg_types[arg_count - 1] {
+                        TokenType::STRUCT(pos) => {
+                            format!("STRUCT: {}", self.parser.symbols[pos].name.clone())  
+                        },
+                        val => val.to_string(),
+                    };
+
+                    errors::error_message("COMPILER ERROR",
+                    format!("Expected to find {:?} as argument type but found: {:?} {}:", mth_arg_error, self.get_cur_chunk().get_last_value().convert(), self.parser.line));
+                    std::process::exit(1);
+                }
+            }
 
             if self.parser.cur.token_type == TokenType::COMMA {
                 self.parser.consume(TokenType::COMMA);
@@ -1570,17 +1616,38 @@ impl Compiler {
     pub fn fn_call(&mut self) {
         let mut arg_count: usize = 0;
         self.changing_fn = true;
-        
+
         if self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::NATIVE_FN && !matches!(self.parser.symbols[self.symbol_to_hold].name.as_str(), "print" | "println" | "input")  {
             self.changing_fn = false;
         }
-        
+
+        let mut fn_arg_types: Vec<TokenType> = vec![];
+        if self.changing_fn && !matches!(self.parser.symbols[self.symbol_to_hold].name.as_str(), "print" | "println" | "input") {
+            let name = self.parser.symbols[self.symbol_to_hold].name.clone();
+            fn_arg_types = self.functions[&name].arg_type.clone();
+        }
+
         let symbol_to_hold_enclosing = self.symbol_to_hold;
         while self.parser.cur.token_type != TokenType::RIGHT_PAREN {
             arg_count += 1;
 
             self.expression();
+            
+            if fn_arg_types.len() > arg_count - 1 {
+                if fn_arg_types[arg_count - 1] != self.get_cur_chunk().get_last_value().convert() {
+                    let fn_arg_error = match fn_arg_types[arg_count - 1] {
+                        TokenType::STRUCT(pos) => {
+                            format!("STRUCT: {}", self.parser.symbols[pos].name.clone())  
+                        },
+                        val => val.to_string(),
+                    };
 
+                    errors::error_message("COMPILER ERROR",
+                    format!("Expected to find {:?} as argument type but found: {:?} {}:", fn_arg_error, self.get_cur_chunk().get_last_value().convert(), self.parser.line));
+                    std::process::exit(1);
+                }
+            }
+            
             if self.parser.cur.token_type == TokenType::COMMA {
                 self.parser.consume(TokenType::COMMA);
             }
@@ -1669,7 +1736,12 @@ impl Compiler {
             errors::error_message("COMPILE ERROR", format!("Function/Method \"{}\" declaration inside bounds {}:", name, self.parser.line));
             std::process::exit(1)
         }
+
         let mut function = Function::new(name.clone());
+        if !is_mth {
+            function = self.functions[&name.clone()].clone();
+        }
+        
 
         self.parser.advance();
 
@@ -1718,6 +1790,10 @@ impl Compiler {
             match arg_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(pos)) => {
                     if self.parser.symbols[pos].name == "String" {
+                        if is_mth {                        
+                            function.arg_type.push(TokenType::STRING);
+                        }
+                        
                         function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::String });
                     }else if self.parser.symbols[pos].name == "List" {
                         self.parser.consume(TokenType::LESS);
@@ -1726,13 +1802,22 @@ impl Compiler {
                         self.parser.advance();
 
                         self.parser.consume(TokenType::GREATER);
-                        
+
+                        if is_mth {                        
+                            function.arg_type.push(TokenType::LIST(Keywords::INSTANCE(pos)));
+                        }
                         function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::List(list_type_value) });
                     }else {
+                        if is_mth {                        
+                            function.arg_type.push(TokenType::STRUCT(pos));
+                        }
                         function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::Null });
                     }
                 },
                 _ => {
+                    if is_mth {                    
+                        function.arg_type.push(arg_type);
+                    }
                     function.locals.push(Local { name: arg_name, local_type: arg_type, is_special: SpecialType::Null });
                 },
             };
@@ -1833,7 +1918,7 @@ impl Compiler {
 
         let op_code = OpCode::FUNCTION_DEC(self.cur_function.clone());
 
-        self.functions.insert(name, enclosing.clone());
+        *self.functions.get_mut(&name.clone()).unwrap() = enclosing.clone();
 
         self.cur_function = enclosing;
 
@@ -2333,7 +2418,7 @@ impl Compiler {
         let string_type = StringObj::init(19);
         let list_type = ListObj::init();
 
-        self.parser.get_symbols(string_type.clone().methods.len(), list_type.clone().methods.len());
+        self.functions = self.parser.get_symbols_and_functions(string_type.clone().methods.len(), list_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
         self.structs.insert("String".to_string(), string_type);

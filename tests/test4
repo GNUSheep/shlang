@@ -1,4 +1,4 @@
-fn loop(a: String p: String) {
+fn loop(a: String, p: String) {
     println(a, " ", p)
     while true {
         var x: String = input()
