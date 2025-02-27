@@ -247,7 +247,7 @@ impl Parser {
         }                        
     }
 
-    pub fn get_symbols_and_functions(&mut self, string_mths_offset: usize, list_mths_offset: usize) -> HashMap<String, Function> {
+    pub fn get_symbols_and_functions(&mut self, string_mths_offset: usize) -> HashMap<String, Function> {
         let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
 
         let mut functions: HashMap<String, Function> = HashMap::new();
@@ -259,10 +259,6 @@ impl Parser {
         }
 
         symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::INT, arg_count: 0 });
-
-        for _ in 0..list_mths_offset {
-            symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
-        }
 
         let mut is_main_fn_found = false;
 
@@ -791,12 +787,22 @@ impl Compiler {
             let pos = self.get_local_pos(self.parser.prev.value.iter().collect::<String>());
 
             let string_pos = self.get_struct_symbol_pos("String".to_string());
-
+            let list_pos = self.get_struct_symbol_pos("List".to_string());
             match self.get_cur_locals()[pos].local_type {
                 TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) => {
-                    if string_pos == struct_pos {            
+                    if string_pos == struct_pos {
                         self.get_cur_chunk().push_value(Value::String(String::new()));
-                    } else {
+                    } else if list_pos == struct_pos {
+                        let list_type = match self.get_cur_locals()[pos].is_special.clone() {
+                            SpecialType::List(v) => Value::List(v.convert()),
+                            _ => {
+                                panic!("This error should never happend; check if while declaring List the special type is set");
+                            }
+                        };
+
+                        self.get_cur_chunk().push_value(list_type);
+                    }
+                    else {
                         self.get_cur_chunk().push_value(Value::InstanceRef(struct_pos));
                     }
                 },
@@ -850,48 +856,18 @@ impl Compiler {
             self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
 
             return;
-        }else if matches!(self.get_cur_locals()[pos].local_type, TokenType::KEYWORD(Keywords::INSTANCE(_)))  {
-            let value_identifier = self.parser.cur.value.iter().collect::<String>();               
-            self.parser.consume(TokenType::IDENTIFIER);
-          
-            let value_pos = self.get_cur_locals()
-                .iter()
-                .enumerate()
-                .rev()
-                .find(|(_, local)| local.name == value_identifier)
-                .map(|(index, _)| index as i32)
-                .unwrap_or(-1);
+        }else if let TokenType::KEYWORD(Keywords::INSTANCE(var_root_struct_pos)) = self.get_cur_locals()[pos].local_type {
+            self.expression();
 
-            let var_type = self.get_cur_locals()[pos as usize].local_type;
-                
-            if value_pos == -1 {
-                let root_struct_name = match var_type {
-                    TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
-                        self.parser.symbols[root_struct_pos].name.clone()
-                    }
-                    _ => panic!("Error never should be there"),
-                };
-                
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning struct instance, expected: {:?} found: {:?} {}:",
-                    root_struct_name,
-                    value_identifier,
-                    self.parser.line,
-                ));
-                std::process::exit(1);
-            }
+            let last_value = self.get_cur_chunk().get_last_value().convert();
 
-            let value_type = self.get_cur_locals()[pos as usize].local_type;
+            let string_pos = self.get_struct_symbol_pos("String".to_string());
 
-            if var_type != value_type {
-                let var_root_struct_name = match var_type {
-                    TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
-                        self.parser.symbols[root_struct_pos].name.clone()
-                    }
-                    _ => panic!("Error never should be there"),
-                };
-                
-                let value_root_struct_name = match value_type {
-                    TokenType::KEYWORD(Keywords::INSTANCE(root_struct_pos)) => {
+            if last_value == TokenType::STRING && var_root_struct_pos != string_pos && TokenType::STRUCT(var_root_struct_pos) != last_value {
+                let var_root_struct_name = self.parser.symbols[var_root_struct_pos].name.clone();
+
+                let value_root_struct_name = match last_value {
+                    TokenType::STRUCT(root_struct_pos) => {
                         self.parser.symbols[root_struct_pos].name.clone()
                     }
                     _ => panic!("Error never should be there"),
@@ -904,12 +880,9 @@ impl Compiler {
                 ));
                 std::process::exit(1);
             }
-                
 
-            self.emit_byte(OpCode::INC_RC(value_pos as usize), self.parser.line);
             self.emit_byte(OpCode::DEC_RC(pos as usize), self.parser.line);
 
-            self.emit_byte(OpCode::GET_INSTANCE_RF(value_pos as usize), self.parser.line);
             self.emit_byte(OpCode::VAR_SET(pos as usize), self.parser.line);
 
             self.emit_byte(OpCode::POP, self.parser.line);
@@ -1112,10 +1085,15 @@ impl Compiler {
     }
 
     pub fn instance_call(&mut self) {
+        let mut list_type = TokenType::NULL;
         let root_struct_pos = match self.get_cur_chunk().get_last_value() {
             Value::InstanceRef(struct_pos) => struct_pos,
             Value::String(_) => {
                 self.get_struct_symbol_pos("String".to_string())
+            },
+            Value::List(token_type) => {
+                list_type = token_type;
+                self.get_struct_symbol_pos("List".to_string())
             },
             _ => {
                 errors::error_message("COMPILING ERROR", format!("Type doesn't contains any fields: {:?} {}:",
@@ -1125,16 +1103,22 @@ impl Compiler {
                 std::process::exit(1);
             }
         };
-    
         self.parser.consume(TokenType::IDENTIFIER);
         let field_name = self.parser.prev.value.iter().collect::<String>();
 
         let root_struct_name = self.parser.symbols[root_struct_pos].name.clone();
-
         if self.parser.cur.token_type == TokenType::LEFT_PAREN {
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
-                    self.mth_call(mth.output_type, mth.arg_count, mth.arg_type.clone());
+                    if matches!(list_type, TokenType::STRUCT(_)) || matches!(list_type, TokenType::STRING) && mth.name == "sort" {
+                        errors::error_message("COMPILING ERROR", format!("Method: SORT is not declared for this type of list \"{}\" {}:",
+                            list_type,
+                            self.parser.line,
+                        ));
+                        std::process::exit(1);
+                    }
+                    
+                    self.mth_call(mth.output_type, mth.arg_count, mth.arg_type.clone(), list_type);
                 },
                 None => {
                     errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
@@ -1453,7 +1437,7 @@ impl Compiler {
         self.scope_depth -= 1;
     }
 
-    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, mth_arg_types: Vec<TokenType>) {
+    pub fn mth_call(&mut self, output_type: TokenType, mth_arg_count: usize, mth_arg_types: Vec<TokenType>, list_type: TokenType) {
         self.parser.consume(TokenType::LEFT_PAREN);
 
         let mut arg_count = 0;
@@ -1464,8 +1448,14 @@ impl Compiler {
             self.expression();
 
             if mth_arg_types.len() > arg_count - 1 {
-                if mth_arg_types[arg_count - 1] != self.get_cur_chunk().get_last_value().convert() {
-                    let mth_arg_error = match mth_arg_types[arg_count - 1] {
+                let arg_type = if mth_arg_types[arg_count - 1] == TokenType::LIST_ELEMENT {
+                    list_type
+                } else {
+                    mth_arg_types[arg_count - 1]
+                };
+
+                if arg_type != self.get_cur_chunk().get_last_value().convert() {
+                    let mth_arg_error = match arg_type {
                         TokenType::STRUCT(pos) => {
                             format!("STRUCT: {}", self.parser.symbols[pos].name.clone())  
                         },
@@ -1506,6 +1496,25 @@ impl Compiler {
             },
             TokenType::STRING => {
                 self.get_cur_chunk().push_value(Value::String(String::new()));
+            }
+            TokenType::LIST_ELEMENT => {
+                let list_type_value = match list_type {
+                    TokenType::INT => Value::Int(0),
+                    TokenType::FLOAT => Value::Float(0.0),
+                    TokenType::STRING => Value::String(String::new()),
+                    TokenType::BOOL =>  Value::Bool(false),
+                    TokenType::STRUCT(val) => Value::InstanceRef(val),
+                    _ => {
+                        errors::error_message("COMPILER ERROR",
+                        format!("List of {:?} is not implemented yet {}:", 
+                            list_type, 
+                            self.parser.line
+                        ));
+                        std::process::exit(1);
+                    }
+                };
+
+                self.get_cur_chunk().push_value(list_type_value);
             }
             output_type => {
                 errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
@@ -2416,9 +2425,9 @@ impl Compiler {
 
         // 19 natives builtin functions
         let string_type = StringObj::init(19);
-        let list_type = ListObj::init();
+        let list_type = ListObj::init(19 + string_type.methods.len());
 
-        self.functions = self.parser.get_symbols_and_functions(string_type.clone().methods.len(), list_type.clone().methods.len());
+        self.functions = self.parser.get_symbols_and_functions(string_type.clone().methods.len());
 
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
         self.structs.insert("String".to_string(), string_type);

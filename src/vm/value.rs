@@ -6,6 +6,7 @@ use crate::vm::bytecode::Chunk;
 
 use std::fmt;
 pub use std::ops::Neg;
+use std::cmp::Ordering;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -81,6 +82,15 @@ impl Value {
                 errors::conversion_error(&format!("Enum Value<{:?}>", self), "String");
                 std::process::exit(1);
             },
+        }
+    }
+
+    pub fn sort(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => a.cmp(b),
+            (Value::Float(a), Value::Float(b)) => a.partial_cmp(b).unwrap_or(Ordering::Equal),
+            (Value::Bool(a), Value::Bool(b)) => a.cmp(b),
+            _ => Ordering::Equal,
         }
     }
 }

@@ -19,6 +19,12 @@ pub enum OpCode {
 
     GET_LIST_FIELD(usize),
     SET_LIST_FIELD(usize),
+    LIST_PUSH,
+    LIST_POP,
+    LIST_INSERT,
+    LIST_REMOVE,
+    LIST_LEN,
+    LIST_SORT,
 
     IF_STMT_OFFSET(usize),
     JUMP(usize),

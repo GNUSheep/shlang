@@ -6,7 +6,8 @@ pub trait Object {
     fn get_rc_counter(&self) -> usize;
 
     fn get_values(&self) -> Vec<value::Value>;
-    fn set_value(&mut self, pos: usize, value: value::Value); 
+    fn set_value(&mut self, pos: usize, value: value::Value);
+    fn replace_values(&mut self, value: Vec<value::Value>); 
     fn get_arg_count(&self) -> usize;
 }
 
@@ -84,6 +85,8 @@ impl Object for EmptyObject {
     }
 
     fn set_value(&mut self, _pos: usize, _value: Value) {}
+
+    fn replace_values(&mut self, _value: Vec<value::Value>) {}
 
     fn get_arg_count(&self) -> usize {
         0

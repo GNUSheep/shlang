@@ -1,4 +1,4 @@
-use crate::vm::value::{Value, Convert};
+use crate::vm::value::Convert;
 use crate::compiler::errors;
 
 use std::fmt;
@@ -43,6 +43,7 @@ pub enum TokenType {
     NATIVE_FN,
     STRUCT(usize),
     LIST(Keywords),
+    LIST_ELEMENT,
     INT,
     FLOAT,
     BOOL,

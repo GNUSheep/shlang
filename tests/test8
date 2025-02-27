@@ -1,0 +1,26 @@
+fn main() {
+    var x: List<String> = []
+
+    x.push("one")
+    x.push("two")
+    x.push("three")
+    x.push("four")
+
+    println(x.len())
+
+    println(x.pop())
+
+    println(x.len())
+
+    println(x[0])
+
+    x.remove(0)
+
+    println(x[0])
+
+    x.insert("paw paw", 0)
+
+    println(x[0])
+
+    println(x.len())
+}

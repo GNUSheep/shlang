@@ -36,8 +36,9 @@ impl Object for Struct {
         vec![Value::String(self.name.clone())]
     }
 
-    fn set_value(&mut self, _pos: usize, _value: Value) {
-    }
+    fn set_value(&mut self, _pos: usize, _value: Value) {}
+
+    fn replace_values(&mut self, _value: Vec<Value>) {}
 
     fn get_arg_count(&self) -> usize {
         self.field_count
@@ -83,6 +84,10 @@ impl Object for StructInstance {
 
     fn set_value(&mut self, pos: usize, value: Value) {
         self.fields_values[pos] = value;
+    }
+
+    fn replace_values(&mut self, value: Vec<Value>) {
+        self.fields_values = value;
     }
 
     fn get_arg_count(&self) -> usize {

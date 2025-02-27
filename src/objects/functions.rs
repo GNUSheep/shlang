@@ -49,8 +49,9 @@ impl rc::Object for Function {
         vec![Value::Chunk(self.chunk.clone())]
     }
 
-    fn set_value(&mut self, _pos: usize, _value: Value) {
-    }
+    fn set_value(&mut self, _pos: usize, _value: Value) {}
+
+    fn replace_values(&mut self, _value: Vec<Value>) {}
 
     fn get_arg_count(&self) -> usize {
         self.arg_count
@@ -160,8 +161,9 @@ impl rc::Object for NativeFn {
         vec![Value::Fn(self.function)]
     }
 
-    fn set_value(&mut self, _pos: usize, _value: Value) {
-    }
+    fn set_value(&mut self, _pos: usize, _value: Value) {}
+
+    fn replace_values(&mut self, _value: Vec<Value>) {}
     
     fn get_arg_count(&self) -> usize {
         self.arg_count

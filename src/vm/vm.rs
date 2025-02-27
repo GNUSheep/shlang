@@ -113,7 +113,7 @@ impl VM {
     }
 
     fn run_instruction(&mut self, instruction: Instruction) {
-        println!("{:?}", instruction);
+        // println!("{:?}", instruction);
         match instruction.op {
             OpCode::CONSTANT_FLOAT(index) | OpCode::CONSTANT_INT(index) | OpCode::CONSTANT_BOOL(index)  | OpCode::CONSTANT_NULL(index) => {
                 let frame = &mut self.frames[self.ip];
@@ -266,6 +266,148 @@ impl VM {
                 }
                 
                 self.rc.get_object(heap_pos).set_value(field_pos, value);
+            },
+            OpCode::LIST_PUSH => {
+                let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: LIST PUSH"),
+                };
+
+                let value = self.frames[self.ip].stack.pop().unwrap();
+
+                let mut list_values = instance_obj.get_values();
+
+                list_values.push(value);
+
+                instance_obj.replace_values(list_values);
+            },
+            OpCode::LIST_POP => {
+                let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: LIST PUSH"),
+                };
+
+                let mut list_values = instance_obj.get_values();
+
+                match list_values.pop() {
+                    Some(val) => {
+                        self.frames[self.ip].stack.push(val);
+                    }
+                    None => {
+                        errors::error_message("RUNTIME - VM ERROR", 
+                            format!("VM - List out of element cannot POP  {}:", instruction.line));
+                        std::process::exit(1);
+                    }
+                }
+
+                instance_obj.replace_values(list_values);
+            },
+            OpCode::LIST_INSERT => {
+                let heap_pos = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => heap_pos,
+                    _ => panic!("Error, this type of value shoudnt be here: LIST PUSH"),
+                };
+
+                let field_pos = match self.frames[self.ip].stack.pop() {
+                    Some(Value::Int(val)) => {
+                        if val < 0 {     
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - Index cannot be negative {}:", instruction.line));
+                            std::process::exit(1);
+                        };
+                       
+                        val as usize
+                    }
+                    _ => {                        
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        std::process::exit(1);
+                    },
+                };
+
+                if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
+                    errors::error_message("RUNTIME - VM ERROR", 
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
+                    std::process::exit(1);
+                }
+
+                let value = self.frames[self.ip].stack.pop().unwrap();
+
+                let mut list_values = self.rc.get_object(heap_pos).get_values();
+
+                list_values.insert(field_pos, value);
+
+                self.rc.get_object(heap_pos).replace_values(list_values);
+            },
+            OpCode::LIST_REMOVE => {
+                let heap_pos = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => heap_pos,
+                    _ => panic!("Error, this type of value shoudnt be here: LIST PUSH"),
+                };
+
+                let field_pos = match self.frames[self.ip].stack.pop() {
+                    Some(Value::Int(val)) => {
+                        if val < 0 {     
+                            errors::error_message("RUNTIME - VM ERROR", 
+                                format!("VM - Index cannot be negative {}:", instruction.line));
+                            std::process::exit(1);
+                        };
+                       
+                        val as usize
+                    }
+                    _ => {                        
+                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        std::process::exit(1);
+                    },
+                };
+
+                if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
+                    errors::error_message("RUNTIME - VM ERROR", 
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
+                    std::process::exit(1);
+                }
+
+                let mut list_values = self.rc.get_object(heap_pos).get_values();
+
+                match list_values[field_pos] {
+                    Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => self.rc.get_object(heap_pos).dec_counter(),
+                    _ => {},
+                }
+                
+                list_values.remove(field_pos);
+
+                self.rc.get_object(heap_pos).replace_values(list_values);
+            },
+            OpCode::LIST_LEN => {
+                let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: LIST PUSH"),
+                };
+
+                let list_values = instance_obj.get_values();
+
+                let list_values_len = list_values.len();
+
+                self.frames[self.ip].stack.push(Value::Int(list_values_len as i64));
+            },
+            OpCode::LIST_SORT => {
+                let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: LIST PUSH"),
+                };
+
+                let mut list_values = instance_obj.get_values();
+
+                list_values.sort_by(|a, b| a.sort(b));
+
+                instance_obj.replace_values(list_values);
             },
 
             OpCode::METHOD_CALL(mth) => {
