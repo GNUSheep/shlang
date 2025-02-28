@@ -59,9 +59,9 @@ impl ReferenceCounter {
             }
         }
 
-        // for i in 0..self.heap.len() {
-        //     println!("{:?} RC: {:?}", self.get_object(i).get_values(), self.get_object(i).get_rc_counter());
-        // }
+        for i in 0..self.heap.len() {
+            println!("{:?} RC: {:?}", self.get_object(i).get_values(), self.get_object(i).get_rc_counter());
+        }
     }
 
     pub fn remove_all(&mut self) {

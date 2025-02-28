@@ -69,7 +69,7 @@ pub fn init_rules() -> HashMap<TokenType, ParseRule> {
         (TokenType::LEFT_BRACE, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
 
         (TokenType::RIGHT_BRACKET, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
-        (TokenType::LEFT_BRACKET, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
+        (TokenType::LEFT_BRACKET, ParseRule { prefix: None, infix: Some(Compiler::list_call), prec: Precedence::CALL }),
 
         (TokenType::COMMA, ParseRule { prefix: None, infix: None, prec: Precedence::NONE }),
         (TokenType::DOT, ParseRule { prefix: None, infix: Some(Compiler::instance_call), prec: Precedence::CALL }),
@@ -912,6 +912,89 @@ impl Compiler {
         self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
     }
 
+    pub fn list_call(&mut self) {
+        let list_type = self.get_cur_chunk().get_last_value();
+       
+        self.expression();
+
+        if self.get_cur_chunk().get_last_value().convert() != TokenType::INT {
+            let value_type = self.get_cur_chunk().get_last_value().convert();
+
+            errors::error_message("COMPILER ERROR",
+                format!("Expected to find INT as index but found: {:?} {}:",  
+                value_type,
+                self.parser.line
+            ));
+            std::process::exit(1);
+        }
+    
+        let list_type_token = match list_type.convert() {
+            TokenType::LIST(val) => {
+                val.convert()
+            }
+            _ => {
+                errors::error_message("COMPILER ERROR",
+                    format!("Unable to convert list_type to TokenType {}:",  
+                    self.parser.line
+                ));
+                std::process::exit(1);
+            }
+        };
+
+        self.parser.consume(TokenType::RIGHT_BRACKET);
+
+        if self.parser.cur.token_type == TokenType::EQ {
+            self.parser.consume(TokenType::EQ);
+
+            self.expression();
+
+            if self.get_cur_chunk().get_last_value().convert() != list_type_token {
+                let value_type = self.get_cur_chunk().get_last_value().convert();
+
+                errors::error_message("COMPILER ERROR",
+                    format!("Expected to find {:?} but found: {:?} {}:", 
+                    list_type_token, 
+                    value_type,
+                    self.parser.line
+                ));
+                std::process::exit(1);
+            }
+    
+            self.emit_byte(OpCode::SET_LIST_FIELD, self.parser.line);
+
+            let pos = self.get_cur_chunk().push_value(Value::Null);            
+            self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
+        
+            return
+        }
+        
+        self.emit_byte(OpCode::GET_LIST_FIELD, self.parser.line);
+        match list_type_token {
+                TokenType::INT => {
+                    self.get_cur_chunk().push_value(Value::Int(0));
+                },
+                TokenType::FLOAT => {
+                    self.get_cur_chunk().push_value(Value::Float(0.0));
+                },
+                TokenType::STRING => {
+                    self.get_cur_chunk().push_value(Value::String(String::new()));
+                },
+                TokenType::LIST(val) => {
+                    self.get_cur_chunk().push_value(Value::List(val.convert()));
+                }
+                TokenType::STRUCT(pos) => {
+                    self.get_cur_chunk().push_value(Value::InstanceRef(pos));
+                }
+                TokenType::BOOL => {
+                    self.get_cur_chunk().push_value(Value::Bool(true));
+                },
+                TokenType::NULL => {
+                    self.get_cur_chunk().push_value(Value::Null);
+                },
+                _ => {},
+        }
+    }
+
     pub fn var_call(&mut self) {
         let var_name = self.parser.prev.value.iter().collect::<String>();
 
@@ -933,52 +1016,18 @@ impl Compiler {
                     std::process::exit(1);
                 }
             };
-            
+
+            self.get_cur_chunk().push_value(Value::List(list_type.convert()));
+
+            self.emit_byte(OpCode::INC_RC(pos as usize), self.parser.line);
+            self.emit_byte(OpCode::GET_INSTANCE_RF(pos as usize), self.parser.line);
+
             self.parser.consume(TokenType::LEFT_BRACKET);
-            self.expression();
 
-            if self.get_cur_chunk().get_last_value().convert() != TokenType::INT {
-                let value_type = self.get_cur_chunk().get_last_value().convert();
-
-                errors::error_message("COMPILER ERROR",
-                    format!("Expected to find INT as index but found: {:?} {}:",  
-                    value_type,
-                    self.parser.line
-                ));
-                std::process::exit(1);
-            }
-        
-            self.parser.consume(TokenType::RIGHT_BRACKET);
-
-            if self.parser.cur.token_type == TokenType::EQ {
-                self.parser.consume(TokenType::EQ);
-
-                self.expression();
-
-                if self.get_cur_chunk().get_last_value().convert() != list_type.convert() {
-                    let value_type = self.get_cur_chunk().get_last_value().convert();
-
-                    errors::error_message("COMPILER ERROR",
-                        format!("Expected to find {:?} but found: {:?} {}:", 
-                        list_type.convert(), 
-                        value_type,
-                        self.parser.line
-                    ));
-                    std::process::exit(1);
-                }
-        
-                self.emit_byte(OpCode::SET_LIST_FIELD(pos as usize), self.parser.line);
-
-                let pos = self.get_cur_chunk().push_value(Value::Null);            
-                self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
-            
-                return
-            }
-            
-            self.emit_byte(OpCode::GET_LIST_FIELD(pos), self.parser.line);
-            self.get_cur_chunk().push_value(list_type);
+            self.list_call();
 
             return
+                        
         }  else if let TokenType::KEYWORD(Keywords::INSTANCE(struct_pos)) = self.get_cur_locals()[pos].local_type {
             let _ = match self.get_cur_locals()[pos].is_special.clone() {
                 SpecialType::List(v) => self.get_cur_chunk().push_value(Value::List(v.convert())),
@@ -1188,6 +1237,9 @@ impl Compiler {
                 TokenType::STRING => {
                     self.get_cur_chunk().push_value(Value::String(String::new()));
                 },
+                TokenType::LIST(val) => {
+                    self.get_cur_chunk().push_value(Value::List(val.convert()));
+                }
                 TokenType::STRUCT(pos) => {
                     self.get_cur_chunk().push_value(Value::InstanceRef(pos));
                 }
@@ -1389,21 +1441,32 @@ impl Compiler {
                 TokenType::KEYWORD(keyword) => keyword.convert(),
                 TokenType::IDENTIFIER => {
                     let struct_name = self.parser.cur.value.iter().collect::<String>();
-                    
-                    let pos = self.parser.symbols
-                        .iter()
-                        .enumerate()
-                        .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
-                        .map(|(index, _)| index as i32)
-                        .unwrap_or(-1);
 
-                    if pos == -1 {
-                        errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
-                        std::process::exit(1);
+                    if struct_name == "List" {
+                        self.parser.consume(TokenType::IDENTIFIER);
+                        self.parser.consume(TokenType::LESS);
+
+                        let list_type = self::Parser::list_type_value(&self.parser.symbols, self.parser.cur.clone(), struct_name.clone(), self.parser.line);
+
+                        self.parser.advance();
+
+                        TokenType::LIST(list_type)
+                    } else {                    
+                        let pos = self.parser.symbols
+                            .iter()
+                            .enumerate()
+                            .find(|(_, name)| *name.name == struct_name && name.symbol_type == TokenType::KEYWORD(Keywords::STRUCT))
+                            .map(|(index, _)| index as i32)
+                            .unwrap_or(-1);
+
+                        if pos == -1 {
+                            errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
+                            std::process::exit(1);
+                        }
+
+                        TokenType::STRUCT(pos as usize)
                     }
-
-                    TokenType::STRUCT(pos as usize)
-                }
+                },
                 _ => {
                     errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
                     std::process::exit(1);

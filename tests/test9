@@ -1,0 +1,16 @@
+struct Foo {
+    x: List<int>,
+}
+
+fn main() {
+    var a: List<int> = [5,2]
+
+    var k: Foo = {a}
+
+    k.x[1] = 10
+    k.x[1] = 50
+    k.x[1] = 20
+    k.x[1] = 60
+
+    println(a[1])
+}

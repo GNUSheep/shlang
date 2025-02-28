@@ -17,8 +17,8 @@ pub enum OpCode {
     GET_INSTANCE_RF(usize),
     METHOD_CALL(functions::Function),
 
-    GET_LIST_FIELD(usize),
-    SET_LIST_FIELD(usize),
+    GET_LIST_FIELD,
+    SET_LIST_FIELD,
     LIST_PUSH,
     LIST_POP,
     LIST_INSERT,

@@ -187,16 +187,7 @@ impl VM {
                 self.frames[self.ip].stack.push(instance_rf);
             },
  
-            OpCode::GET_LIST_FIELD(pos) => {
-                let instance_obj = match self.frames[self.ip].stack[pos] {
-                    Value::InstanceRef(heap_pos) => {
-                        self.rc.get_object(heap_pos)
-                    }
-                    _ => panic!("Error, this type of value shoudnt be here: GET LIST FIELD"),
-                };
-
-                // instance_obj.dec_counter();
-
+            OpCode::GET_LIST_FIELD => {
                 let field_pos = match self.frames[self.ip].stack.pop() {
                     Some(Value::Int(val)) => {
                         if val < 0 {     
@@ -204,12 +195,6 @@ impl VM {
                                 format!("VM - Index cannot be negative {}:", instruction.line));
                             std::process::exit(1);
                         };
-
-                        if val as usize >= instance_obj.get_values().len() {
-                            errors::error_message("RUNTIME - VM ERROR", 
-                                format!("VM - List index out of range  {}/{} {}:", val, instance_obj.get_values().len(), instruction.line));
-                            std::process::exit(1);
-                        }
                         
                         val as usize
                     }
@@ -218,6 +203,21 @@ impl VM {
                         std::process::exit(1);
                     },
                 };
+
+                let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
+                    Value::InstanceRef(heap_pos) => {
+                        self.rc.get_object(heap_pos)
+                    }
+                    _ => panic!("Error, this type of value shoudnt be here: GET LIST FIELD"),
+                };
+
+                instance_obj.dec_counter();
+
+                if field_pos as usize >= instance_obj.get_values().len() {
+                    errors::error_message("RUNTIME - VM ERROR", 
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, instance_obj.get_values().len(), instruction.line));
+                    std::process::exit(1);
+                }
 
                 let field_value = instance_obj.get_values()[field_pos].clone();
 
@@ -228,7 +228,7 @@ impl VM {
                 
                 self.frames[self.ip].stack.push(field_value);
             },
-            OpCode::SET_LIST_FIELD(pos) => {
+            OpCode::SET_LIST_FIELD => {
                 let value = self.frames[self.ip].stack.pop().unwrap();
 
                 let field_pos = match self.frames[self.ip].stack.pop() {
@@ -247,12 +247,14 @@ impl VM {
                     },
                 };
 
-                let (heap_pos, field_value) = match self.frames[self.ip].stack[pos] {
+                let (heap_pos, field_value) = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::InstanceRef(heap_pos) => {
                         (heap_pos, self.rc.get_object(heap_pos).get_values()[field_pos].clone())
                     }
-                    _ => panic!("Error, this type of value shoudnt be here: GET LIST FIELD"),
+                    _ => panic!("Error, this type of value shoudnt be here: SET LIST FIELD"),
                 };
+
+                self.rc.get_object(heap_pos).dec_counter();
 
                 if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
                     errors::error_message("RUNTIME - VM ERROR", 

@@ -1,4 +1,4 @@
-use crate::frontend::tokens::TokenType;
+use crate::frontend::tokens::{Keywords, TokenType};
 
 use crate::compiler::errors;
 
@@ -126,12 +126,28 @@ pub trait Convert {
 
 impl Convert for Value {
     fn convert(&self) -> TokenType {
+        // println!("{:?}", self);
         match *self {
             Value::Float(_) => TokenType::FLOAT,
             Value::Int(_) => TokenType::INT,
             Value::Bool(_) => TokenType::BOOL,
             Value::Null => TokenType::NULL,
             Value::String(_) => TokenType::STRING,
+            Value::List(val) => {
+                let val_converted = match val {
+                    TokenType::INT => Keywords::INT,
+                    TokenType::FLOAT => Keywords::FLOAT,
+                    TokenType::BOOL => Keywords::BOOL,
+                    TokenType::STRING => Keywords::STRING,
+                    TokenType::STRUCT(pos) => Keywords::INSTANCE(pos), 
+                    _ => {
+                        errors::conversion_error("Enum Value<_>", "TokenType");
+                        std::process::exit(1);
+                    },
+                };
+
+                TokenType::LIST(val_converted)
+            },
             Value::InstanceRef(val) => TokenType::STRUCT(val), 
             _ => {
                 errors::conversion_error("Enum Value<_>", "TokenType");

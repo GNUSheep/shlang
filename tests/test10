@@ -1,0 +1,15 @@
+fn main() {
+    var a: List<String> = ["one", "two"]
+
+    println(a[0])
+
+    boo(a)
+
+    println(a[0])
+}
+
+fn boo(x: List<String>) {
+    var p: String = "hundred"
+
+    x[0] = p
+}
