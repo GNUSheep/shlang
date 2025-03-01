@@ -1,4 +1,5 @@
-use std::fs::File;
+use std::env;
+use std::{fs::File, path::Path};
 use std::io::Read;
 
 use crate::{compiler::errors::error_message, frontend::tokens::{Keywords, Token, TokenType}};
@@ -250,11 +251,11 @@ impl Scanner {
     }
 }
 
-pub fn get_file(file_path: &String) -> String {
+pub fn get_file(file_path: &String) -> (String, String) {
     let mut file = match File::open(file_path) {
         Ok(file) => file,
-        Err(e) => {
-            error_message("FILE OPEN", format!("Error while trying to open a file: {:?}", e));
+        Err(_) => {
+            error_message("FILE OPEN", format!("Error while trying to open a file: {:?}", file_path));
             std::process::exit(1);
         },
     };
@@ -262,11 +263,20 @@ pub fn get_file(file_path: &String) -> String {
     let mut buffer: String = String::new();
     match file.read_to_string(&mut buffer) {
         Ok(_) => {}
-        Err(e) => {
-            error_message("FILE OPEN", format!("Error while trying to read a file: {:?}", e));
+        Err(_) => {
+            error_message("FILE OPEN", format!("Error while trying to read a file: {:?}", file_path));
             std::process::exit(1);
         }
     };
 
-    buffer
+    let base_dir = if let Some(directory) = Path::new(file_path).parent() {
+        let mut dir = directory.to_string_lossy().to_string();
+        if dir.is_empty() {
+            dir = ".".to_string();
+        }
+        dir
+    } else {
+        env::current_dir().map(| path | path.to_string_lossy().to_string() ).unwrap_or(".".to_string())
+    };
+    (buffer, base_dir)
 }

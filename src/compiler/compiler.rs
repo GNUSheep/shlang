@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    objects::{functions::{Function, Local, NativeFn, SpecialType}, lists::ListObj, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
+    frontend, objects::{functions::{Function, Local, NativeFn, SpecialType}, lists::ListObj, string::StringObj, structs::{Struct, StructInstance}}, vm::{bytecode::{Chunk, Instruction, OpCode}, value::{Convert, Value}
 }};
 use crate::frontend::tokens::{Token, TokenType, Keywords};
 
@@ -25,7 +25,7 @@ impl LoopInfo {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Symbol {
     pub name: String,
     pub symbol_type: TokenType,
@@ -144,9 +144,25 @@ pub struct Parser {
     index: usize,
     rules: HashMap<TokenType, ParseRule>,
     symbols: Vec<Symbol>,
+    base_dir: String,
+    imported_files: HashMap<String, Vec<Token>>,
 }
 
 impl Parser {
+    pub fn new(tokens: Vec<Token>, base_dir: String, imported_files: HashMap<String, Vec<Token>>) -> Self {       
+        Self {
+            tokens,
+            cur: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
+            prev: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
+            line: 0,
+            index: 0,
+            rules: init_rules(),
+            symbols: vec![],
+            base_dir,
+            imported_files,
+        }
+    }
+    
     pub fn advance(&mut self) {
         self.prev = self.cur.clone();
         self.cur = self.tokens[self.index].clone();
@@ -247,23 +263,52 @@ impl Parser {
         }                        
     }
 
-    pub fn get_symbols_and_functions(&mut self, string_mths_offset: usize) -> HashMap<String, Function> {
-        let mut symbols: Vec<Symbol> = NativeFn::get_natives_symbols();
-
-        let mut functions: HashMap<String, Function> = HashMap::new();
-        
-        symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
+    pub fn get_builtin_symbols(&mut self, string_mths_offset: usize) {
+        self.symbols = NativeFn::get_natives_symbols();
+                
+        self.symbols.push(Symbol { name: "String".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::STRING, arg_count: 1 });
 
         for _ in 0..string_mths_offset { 
-            symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
+            self.symbols.push(Symbol { name: String::new(), symbol_type: TokenType::NATIVE_FN, output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 1 });
         }
 
-        symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::INT, arg_count: 0 });
+        self.symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::INT, arg_count: 0 });
+    }
+
+    pub fn get_symbols_and_functions(&mut self, check_for_main: bool) -> HashMap<String, Function> {
+        let mut functions: HashMap<String, Function> = HashMap::new();
 
         let mut is_main_fn_found = false;
 
         let mut iter = self.tokens.iter_mut();
         'l: while let Some(token) = iter.next()  {
+            if token.token_type == TokenType::KEYWORD(Keywords::IMPORT) {
+                let file_path_token = iter.next().unwrap();
+
+                if file_path_token.token_type != TokenType::STRING {
+                    error_message("COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", token.line));
+                    std::process::exit(1);
+                }
+
+                let mut file_path = file_path_token.value.iter().collect::<String>();
+                file_path = self.base_dir.clone() + &"/" + &file_path;
+
+                let (source_code, _) = frontend::lexer::get_file(&file_path);
+
+                let mut scanner = frontend::lexer::Scanner::init(&source_code);
+                let tokens = scanner.get_tokens();
+
+                let mut new_parser = Parser::new(tokens.clone(), self.base_dir.clone(), self.imported_files.clone());
+
+                new_parser.symbols = self.symbols.to_vec();
+
+                functions.extend(new_parser.get_symbols_and_functions(false));
+
+                self.symbols = new_parser.symbols;
+                
+                self.imported_files.insert(file_path, tokens);
+            }
+            
             if token.token_type == TokenType::KEYWORD(Keywords::FN) {               
                 let fn_name = match iter.next() {
                     Some(val) => {
@@ -272,10 +317,9 @@ impl Parser {
                     },
                     None => break 'l,
                 };
-
                 let mut function = Function::new(fn_name.clone());
 
-                if symbols.iter().any(| symbol | symbol.name == fn_name) {
+                if self.symbols.iter().any(| symbol | symbol.name == fn_name) {
                     errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token.line));
                     std::process::exit(1);
                 }
@@ -289,7 +333,7 @@ impl Parser {
                     match tok.token_type {
                         TokenType::COLON => {
                             if let Some(val) = iter.next() {
-                                let arg_type = Parser::get_token_type(val.clone(), &mut iter, &symbols, self.line);
+                                let arg_type = Parser::get_token_type(val.clone(), &mut iter, &self.symbols, self.line);
                                 function.arg_type.push(arg_type);
                             }
                             
@@ -303,13 +347,13 @@ impl Parser {
                 let out_type = match iter.next() {
                     Some(val) => {
                         if val.token_type == TokenType::EOF { break 'l };
-                        Parser::get_token_type(val.clone(), &mut iter, &symbols, self.line)
+                        Parser::get_token_type(val.clone(), &mut iter, &self.symbols, self.line)
                     },
                     None => break 'l,
                 };
 
                 functions.insert(fn_name.clone(), function);
-                symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count });
+                self.symbols.push(Symbol{name: fn_name, symbol_type: TokenType::KEYWORD(Keywords::FN), output_type: out_type, arg_count });
             }
 
             if token.token_type == TokenType::KEYWORD(Keywords::STRUCT) {
@@ -321,21 +365,24 @@ impl Parser {
                     None => break 'l,
                 };
 
-                if symbols.iter().any(| symbol | symbol.name == struct_name) {
+                if self.symbols.iter().any(| symbol | symbol.name == struct_name) {
                     errors::error_message("COMPILER ERROR", format!("Struct: \"{}\" is already defined {}:", struct_name, token.line));
                     std::process::exit(1);
                 }
 
-                symbols.push(Symbol{name: struct_name, symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
+                self.symbols.push(Symbol{name: struct_name, symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::KEYWORD(Keywords::NULL), arg_count: 0 });
             }
         }
 
-        if !is_main_fn_found {
+        if check_for_main && !is_main_fn_found {
             errors::error_message("COMPILE ERROR", format!("Cannot find \"main\" function"));
             std::process::exit(1);
         }
 
-        self.symbols = symbols;
+        if !check_for_main && is_main_fn_found {
+            errors::error_message("COMPILE ERROR", format!("Function \"main\" should be found in file passed as argument to intepreter"));
+            std::process::exit(1);
+        }
         functions
     }
 
@@ -356,17 +403,9 @@ pub struct Compiler {
 }
 
 impl Compiler {
-    pub fn new(tokens: Vec<Token>) -> Self {
+    pub fn new(tokens: Vec<Token>, base_dir: String) -> Self {
         Self {
-            parser: Parser {
-                tokens,
-                cur: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
-                prev: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
-                line: 0,
-                index: 0,
-                rules: init_rules(),
-                symbols: vec![],
-            },
+            parser: Parser::new(tokens, base_dir, HashMap::new()),
             cur_function: Function::new(String::new()),
             functions: HashMap::new(),
             scope_depth: 0,
@@ -2368,12 +2407,47 @@ impl Compiler {
         self.get_cur_chunk().code[index_or] = Instruction { op: OpCode::JUMP(offset), line: self.parser.line };
     }
 
+    fn import_file(&mut self) {
+        if self.parser.cur.token_type != TokenType::STRING {
+            error_message("COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", self.parser.line));
+            std::process::exit(1);
+        }
+        self.parser.consume(TokenType::STRING);
+        
+        let mut file_path = self.parser.prev.value.iter().collect::<String>();
+        file_path = self.parser.base_dir.clone() + &"/" + &file_path;
+                
+        let enclosing_tokens = self.parser.tokens.clone();
+        let enclosing_cur = self.parser.cur.clone();
+        let enclosing_prev = self.parser.prev.clone();
+        let enclosing_line = self.parser.line;
+        let enclosing_index = self.parser.index;
+
+        self.parser.tokens = self.parser.imported_files.get(&file_path).unwrap().to_vec();
+        self.parser.cur = Token { token_type: TokenType::ERROR, value: vec![], line: 0};
+        self.parser.prev = Token { token_type: TokenType::ERROR, value: vec![], line: 0};
+        self.parser.line = 0;
+        self.parser.index = 0;
+        
+        self.compile_file();
+
+        self.parser.tokens = enclosing_tokens;
+        self.parser.cur = enclosing_cur;
+        self.parser.prev = enclosing_prev;
+        self.parser.line = enclosing_line;
+        self.parser.index = enclosing_index;
+     }
+
     fn compile_line(&mut self) {
         match self.parser.cur.token_type {
             TokenType::KEYWORD(Keywords::FN) | TokenType::KEYWORD(Keywords::VAR) | TokenType::KEYWORD(Keywords::LIST) => {
                 self.parser.advance();
                 self.declare();
             },
+            TokenType::KEYWORD(Keywords::IMPORT) => {
+                self.parser.advance();
+                self.import_file();
+            }
             TokenType::KEYWORD(Keywords::RETURN) => {
                 self.parser.advance();
                 self.return_stmt();
@@ -2490,8 +2564,9 @@ impl Compiler {
         let string_type = StringObj::init(19);
         let list_type = ListObj::init(19 + string_type.methods.len());
 
-        self.functions = self.parser.get_symbols_and_functions(string_type.clone().methods.len());
+        self.parser.get_builtin_symbols(string_type.methods.len());
 
+        self.functions = self.parser.get_symbols_and_functions(true);
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
         self.structs.insert("String".to_string(), string_type);
 
@@ -2501,7 +2576,11 @@ impl Compiler {
 
     pub fn compile(&mut self) -> Chunk {
         self.impl_native_types();
+        self.compile_file();
+        self.get_cur_chunk().clone()
+    }
 
+    fn compile_file(&mut self) {
         self.parser.advance();
         loop {
             self.parser.line = self.parser.cur.line;
@@ -2511,9 +2590,6 @@ impl Compiler {
             self.compile_line();
             self.loop_info = LoopInfo::new();
         }
-        self.structs = HashMap::new();
-
-        self.get_cur_chunk().clone()
     }
 
     pub fn parse(&mut self, prec: Precedence) {

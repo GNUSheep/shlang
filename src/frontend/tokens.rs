@@ -3,8 +3,7 @@ use crate::compiler::errors;
 
 use std::fmt;
 
-#[derive(Debug, PartialEq)]
-#[derive(Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Token {
     pub token_type: TokenType,
     pub value: Vec<char>,
@@ -90,6 +89,7 @@ pub enum Keywords {
     CONTINUE,
     IN,
     FN,
+    IMPORT,
     STRUCT,
     INSTANCE(usize),
     METHODS,
@@ -121,6 +121,7 @@ impl std::str::FromStr for Keywords {
             "continue" => Ok(Keywords::CONTINUE),
             "in" => Ok(Keywords::IN),
             "fn" => Ok(Keywords::FN),
+            "import" => Ok(Keywords::IMPORT),
             "struct" => Ok(Keywords::STRUCT),
             "instance" => Ok(Keywords::INSTANCE(0)),
             "methods" => Ok(Keywords::METHODS),

@@ -7,12 +7,12 @@ mod objects;
 mod std;
 
 fn run(file_path: &String) {
-    let source_code = frontend::lexer::get_file(file_path);
+    let (source_code, base_dir) = frontend::lexer::get_file(file_path);
 
     let mut scanner = frontend::lexer::Scanner::init(&source_code);
     let tokens = scanner.get_tokens();
 
-    let mut compiler = compiler::compiler::Compiler::new(tokens);
+    let mut compiler = compiler::compiler::Compiler::new(tokens, base_dir);
 
     let main_chunk = compiler.compile();
     // println!("{:?}", main_chunk);
