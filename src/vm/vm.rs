@@ -69,7 +69,7 @@ impl VM {
                     }
                     
                 },
-                _ => errors::error_message("RUNTIME ERROR", format!("Declare all - this error should never prints out")),
+                _ => errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME ERROR", format!("Declare all - this error should never prints out")),
             }
         }
 
@@ -191,7 +191,7 @@ impl VM {
                 let field_pos = match self.frames[self.ip].stack.pop() {
                     Some(Value::Int(val)) => {
                         if val < 0 {     
-                            errors::error_message("RUNTIME - VM ERROR", 
+                            errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                                 format!("VM - Index cannot be negative {}:", instruction.line));
                             std::process::exit(1);
                         };
@@ -199,7 +199,7 @@ impl VM {
                         val as usize
                     }
                     _ => {                        
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
                         std::process::exit(1);
                     },
                 };
@@ -214,7 +214,7 @@ impl VM {
                 instance_obj.dec_counter();
 
                 if field_pos as usize >= instance_obj.get_values().len() {
-                    errors::error_message("RUNTIME - VM ERROR", 
+                    errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                         format!("VM - List index out of range  {}/{} {}:", field_pos, instance_obj.get_values().len(), instruction.line));
                     std::process::exit(1);
                 }
@@ -234,7 +234,7 @@ impl VM {
                 let field_pos = match self.frames[self.ip].stack.pop() {
                     Some(Value::Int(val)) => {
                         if val < 0 {     
-                            errors::error_message("RUNTIME - VM ERROR", 
+                            errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                                 format!("VM - Index cannot be negative {}:", instruction.line));
                             std::process::exit(1);
                         };
@@ -242,7 +242,7 @@ impl VM {
                         val as usize
                     }
                     _ => {                        
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
                         std::process::exit(1);
                     },
                 };
@@ -257,7 +257,7 @@ impl VM {
                 self.rc.get_object(heap_pos).dec_counter();
 
                 if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
-                    errors::error_message("RUNTIME - VM ERROR", 
+                    errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                         format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
                     std::process::exit(1);
                 }
@@ -300,7 +300,7 @@ impl VM {
                         self.frames[self.ip].stack.push(val);
                     }
                     None => {
-                        errors::error_message("RUNTIME - VM ERROR", 
+                        errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                             format!("VM - List out of element cannot POP  {}:", instruction.line));
                         std::process::exit(1);
                     }
@@ -317,7 +317,7 @@ impl VM {
                 let field_pos = match self.frames[self.ip].stack.pop() {
                     Some(Value::Int(val)) => {
                         if val < 0 {     
-                            errors::error_message("RUNTIME - VM ERROR", 
+                            errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                                 format!("VM - Index cannot be negative {}:", instruction.line));
                             std::process::exit(1);
                         };
@@ -325,13 +325,13 @@ impl VM {
                         val as usize
                     }
                     _ => {                        
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
                         std::process::exit(1);
                     },
                 };
 
                 if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
-                    errors::error_message("RUNTIME - VM ERROR", 
+                    errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                         format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
                     std::process::exit(1);
                 }
@@ -353,7 +353,7 @@ impl VM {
                 let field_pos = match self.frames[self.ip].stack.pop() {
                     Some(Value::Int(val)) => {
                         if val < 0 {     
-                            errors::error_message("RUNTIME - VM ERROR", 
+                            errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                                 format!("VM - Index cannot be negative {}:", instruction.line));
                             std::process::exit(1);
                         };
@@ -361,13 +361,13 @@ impl VM {
                         val as usize
                     }
                     _ => {                        
-                        errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
+                        errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", format!("VM - this error should never prints out: run out of stack {}:", instruction.line));
                         std::process::exit(1);
                     },
                 };
 
                 if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
-                    errors::error_message("RUNTIME - VM ERROR", 
+                    errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
                         format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
                     std::process::exit(1);
                 }
@@ -805,7 +805,7 @@ impl VM {
                 self.frames[self.ip].stack.push(Value::Bool(a.get_string()!=b.get_string()));
             },
 
-            opcode => errors::error_message("RUNTIME - VM ERROR", format!("VM - this error should never prints out: {:?}", opcode)),
+            opcode => errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", format!("VM - this error should never prints out: {:?}", opcode)),
         }
     }
 }

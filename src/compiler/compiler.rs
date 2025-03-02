@@ -129,7 +129,7 @@ impl From<u32> for Precedence {
             9 => Precedence::CALL,
             10 => Precedence::PRIMARY,
             _ => {
-                errors::conversion_error("u32", "Precedence");
+                errors::conversion_error("shlang/compiler.rs".to_string(), "u32", "Precedence");
                 std::process::exit(1);
             }
         }
@@ -146,10 +146,11 @@ pub struct Parser {
     symbols: Vec<Symbol>,
     base_dir: String,
     imported_files: HashMap<String, Vec<Token>>,
+    cur_file: String,
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>, base_dir: String, imported_files: HashMap<String, Vec<Token>>) -> Self {       
+    pub fn new(tokens: Vec<Token>, base_dir: String, imported_files: HashMap<String, Vec<Token>>, cur_file: String) -> Self {       
         Self {
             tokens,
             cur: Token { token_type: TokenType::ERROR, value: vec![], line: 0},
@@ -160,6 +161,7 @@ impl Parser {
             symbols: vec![],
             base_dir,
             imported_files,
+            cur_file,
         }
     }
     
@@ -170,7 +172,7 @@ impl Parser {
         self.index += 1;
 
         if self.cur.token_type == TokenType::ERROR {
-            errors::token_error(self.cur.clone());
+            errors::token_error(self.cur_file.clone(), self.cur.clone());
         }
     }
 
@@ -183,13 +185,13 @@ impl Parser {
 
     pub fn consume(&mut self, token_type: TokenType) {
         if self.cur.token_type != token_type {
-            errors::error_message("PARSER ERROR", format!("Expected to find a {:?}, but found: {:?} {}:", token_type, self.cur.token_type, self.line));
+            errors::error_message(self.cur_file.clone(), "PARSER ERROR", format!("Expected to find a {:?}, but found: {:?} {}:", token_type, self.cur.token_type, self.line));
             std::process::exit(1);
         }
         self.advance();
     }
 
-    pub fn list_type_value(symbols: &Vec<Symbol>, token: Token, obj_name: String, line: u32) -> Keywords {
+    pub fn list_type_value(symbols: &Vec<Symbol>, token: Token, obj_name: String, line: u32, cur_file: String) -> Keywords {
         let list_type = match token.token_type {
             TokenType::KEYWORD(key) => key,
             TokenType::IDENTIFIER => {
@@ -203,7 +205,7 @@ impl Parser {
                     .unwrap_or(-1);
                  
                 if pos == -1 {
-                    errors::error_message("COMPILER ERROR",
+                    errors::error_message(cur_file, "COMPILER ERROR",
                     format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", obj_name, line));
                     std::process::exit(1);
                 }
@@ -211,7 +213,7 @@ impl Parser {
                 Keywords::INSTANCE(pos as usize)
             },
             t => {
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(cur_file, "COMPILER ERROR",
                     format!("Unexpected list type {:?} {}:", t, line));
                 std::process::exit(1);
             }
@@ -220,7 +222,7 @@ impl Parser {
         list_type
     }
 
-    pub fn get_token_type(val: Token, iter: &mut std::slice::IterMut<Token>, symbols: &Vec<Symbol>, line: u32) -> TokenType { 
+    pub fn get_token_type(val: Token, iter: &mut std::slice::IterMut<Token>, symbols: &Vec<Symbol>, line: u32, cur_file: String) -> TokenType { 
         match val.token_type {
             TokenType::KEYWORD(Keywords::INT) => TokenType::INT,
             TokenType::KEYWORD(Keywords::FLOAT) => TokenType::FLOAT,
@@ -234,12 +236,12 @@ impl Parser {
 
                     let token = if let Some(token) = iter.next() { token }
                     else {
-                        errors::error_message("COMPILER ERROR",
+                        errors::error_message(cur_file, "COMPILER ERROR",
                             format!("Expected to find a list type after \"<\" {}:", line));
                         std::process::exit(1);
                     };
 
-                    let list_type = Self::list_type_value(&symbols, token.clone(), obj_name, line.clone()).clone();
+                    let list_type = Self::list_type_value(&symbols, token.clone(), obj_name, line.clone(), cur_file.clone()).clone();
                     iter.next();                                        
                     TokenType::LIST(list_type)
                 } else {
@@ -251,7 +253,7 @@ impl Parser {
                         .unwrap_or(-1);
 
                     if pos == -1 {
-                        errors::error_message("COMPILER ERROR",
+                        errors::error_message(cur_file, "COMPILER ERROR",
                         format!("Symbol: \"{}\" is not defined as struct in this scope, failed to create a function with that output type {}:", obj_name, line));
                         std::process::exit(1);
                     }
@@ -275,7 +277,7 @@ impl Parser {
         self.symbols.push(Symbol { name: "List".to_string(), symbol_type: TokenType::KEYWORD(Keywords::STRUCT), output_type: TokenType::INT, arg_count: 0 });
     }
 
-    pub fn get_symbols_and_functions(&mut self, check_for_main: bool) -> HashMap<String, Function> {
+    pub fn get_symbols_and_functions(&mut self, check_for_main: bool, main_file: String) -> HashMap<String, Function> {
         let mut functions: HashMap<String, Function> = HashMap::new();
 
         let mut is_main_fn_found = false;
@@ -286,27 +288,41 @@ impl Parser {
                 let file_path_token = iter.next().unwrap();
 
                 if file_path_token.token_type != TokenType::STRING {
-                    error_message("COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", token.line));
+                    error_message(self.cur_file.clone(), "COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", token.line));
                     std::process::exit(1);
                 }
-
+                
                 let mut file_path = file_path_token.value.iter().collect::<String>();
                 file_path = self.base_dir.clone() + &"/" + &file_path;
 
+                if file_path == self.base_dir.clone() + &"/" + &main_file {    
+                    error_message(self.cur_file.clone(), "COMPILER ERROR", format!("Cannot import main file passed as argument to interpreter {}:", token.line));
+                    std::process::exit(1);
+                }
+
+                if file_path == self.cur_file {
+                    error_message(file_path, "COMPILER ERROR", format!("Cannot import itself {}:", token.line));
+                    std::process::exit(1);
+                }
+                
+                if self.imported_files.contains_key(&file_path) {
+                    continue
+                }
                 let (source_code, _) = frontend::lexer::get_file(&file_path);
 
                 let mut scanner = frontend::lexer::Scanner::init(&source_code);
                 let tokens = scanner.get_tokens();
 
-                let mut new_parser = Parser::new(tokens.clone(), self.base_dir.clone(), self.imported_files.clone());
+                self.imported_files.insert(file_path.clone(), tokens.clone());
+                let mut new_parser = Parser::new(tokens, self.base_dir.clone(), self.imported_files.clone(), file_path);
 
                 new_parser.symbols = self.symbols.to_vec();
 
-                functions.extend(new_parser.get_symbols_and_functions(false));
+                functions.extend(new_parser.get_symbols_and_functions(false, main_file.clone()));
 
                 self.symbols = new_parser.symbols;
-                
-                self.imported_files.insert(file_path, tokens);
+
+                self.imported_files = new_parser.imported_files;
             }
             
             if token.token_type == TokenType::KEYWORD(Keywords::FN) {               
@@ -320,7 +336,7 @@ impl Parser {
                 let mut function = Function::new(fn_name.clone());
 
                 if self.symbols.iter().any(| symbol | symbol.name == fn_name) {
-                    errors::error_message("COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token.line));
+                    errors::error_message(self.cur_file.clone(), "COMPILER ERROR", format!("Function: \"{}\" is already defined {}:", fn_name, token.line));
                     std::process::exit(1);
                 }
 
@@ -333,7 +349,7 @@ impl Parser {
                     match tok.token_type {
                         TokenType::COLON => {
                             if let Some(val) = iter.next() {
-                                let arg_type = Parser::get_token_type(val.clone(), &mut iter, &self.symbols, self.line);
+                                let arg_type = Parser::get_token_type(val.clone(), &mut iter, &self.symbols, self.line, self.cur_file.clone());
                                 function.arg_type.push(arg_type);
                             }
                             
@@ -347,7 +363,7 @@ impl Parser {
                 let out_type = match iter.next() {
                     Some(val) => {
                         if val.token_type == TokenType::EOF { break 'l };
-                        Parser::get_token_type(val.clone(), &mut iter, &self.symbols, self.line)
+                        Parser::get_token_type(val.clone(), &mut iter, &self.symbols, self.line, self.cur_file.clone())
                     },
                     None => break 'l,
                 };
@@ -366,7 +382,7 @@ impl Parser {
                 };
 
                 if self.symbols.iter().any(| symbol | symbol.name == struct_name) {
-                    errors::error_message("COMPILER ERROR", format!("Struct: \"{}\" is already defined {}:", struct_name, token.line));
+                    errors::error_message(self.cur_file.clone(), "COMPILER ERROR", format!("Struct: \"{}\" is already defined {}:", struct_name, token.line));
                     std::process::exit(1);
                 }
 
@@ -375,12 +391,12 @@ impl Parser {
         }
 
         if check_for_main && !is_main_fn_found {
-            errors::error_message("COMPILE ERROR", format!("Cannot find \"main\" function"));
+            errors::error_message(self.cur_file.clone(), "COMPILE ERROR", format!("Cannot find \"main\" function"));
             std::process::exit(1);
         }
 
         if !check_for_main && is_main_fn_found {
-            errors::error_message("COMPILE ERROR", format!("Function \"main\" should be found in file passed as argument to intepreter"));
+                errors::error_message(self.cur_file.clone(), "COMPILE ERROR", format!("Function \"main\" should be found in file passed as argument to intepreter"));
             std::process::exit(1);
         }
         functions
@@ -400,12 +416,15 @@ pub struct Compiler {
     loop_info: LoopInfo,
     structs: HashMap<String, Struct>,
     changing_fn: bool,
+    main_file: String,
+    cur_filepath: String,
+    compiled_files: HashMap<String, i32>,
 }
 
 impl Compiler {
-    pub fn new(tokens: Vec<Token>, base_dir: String) -> Self {
+    pub fn new(tokens: Vec<Token>, base_dir: String, cur_filepath: String, main_file: String) -> Self {
         Self {
-            parser: Parser::new(tokens, base_dir, HashMap::new()),
+            parser: Parser::new(tokens, base_dir, HashMap::new(), cur_filepath.clone()),
             cur_function: Function::new(String::new()),
             functions: HashMap::new(),
             scope_depth: 0,
@@ -413,6 +432,9 @@ impl Compiler {
             loop_info: LoopInfo::new(),
             structs: HashMap::new(),
             changing_fn: false,
+            main_file,
+            cur_filepath,
+            compiled_files: HashMap::new(),
         }
     }
 
@@ -437,7 +459,7 @@ impl Compiler {
             TokenType::MINUS => self.emit_byte(OpCode::NEGATE, self.parser.line),
             TokenType::INTERJ => self.emit_byte(OpCode::NEGATE, self.parser.line),
             _ => {
-                errors::error_unexpected(self.parser.prev.clone(), "negation function");
+                errors::error_unexpected(self.cur_filepath.clone(), self.parser.prev.clone(), "negation function");
                 std::process::exit(1);
             }
         }
@@ -470,7 +492,7 @@ impl Compiler {
                     TokenType::LESS => self.emit_byte(OpCode::LESS_INT, self.parser.line),
                     TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_INT, self.parser.line),
                     _ => {
-                        errors::error_unexpected(logic_token, "logic operator function");
+                        errors::error_unexpected(self.cur_filepath.clone(), logic_token, "logic operator function");
                         std::process::exit(1);
                     }
                 };
@@ -484,7 +506,7 @@ impl Compiler {
                     TokenType::LESS => self.emit_byte(OpCode::LESS_FLOAT, self.parser.line),
                     TokenType::LESS_EQ => self.emit_byte(OpCode::EQ_LESS_FLOAT, self.parser.line),
                     _ => {
-                        errors::error_unexpected(logic_token, "logic operator function");
+                        errors::error_unexpected(self.cur_filepath.clone(), logic_token, "logic operator function");
                         std::process::exit(1);
                     }
                 };
@@ -494,7 +516,7 @@ impl Compiler {
                     TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_BOOL, self.parser.line),
                     TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_BOOL, self.parser.line),
                     _ => {
-                        errors::error_unexpected(logic_token, "logic operator function");
+                        errors::error_unexpected(self.cur_filepath.clone(), logic_token, "logic operator function");
                         std::process::exit(1);
                     }
                 };
@@ -504,13 +526,13 @@ impl Compiler {
                     TokenType::EQ_EQ => self.emit_byte(OpCode::EQ_STRING, self.parser.line),
                     TokenType::INTERJ_EQ => self.emit_byte(OpCode::NEG_EQ_STRING, self.parser.line),
                     _ => {
-                        errors::error_unexpected(logic_token, "logic operator function");
+                        errors::error_unexpected(self.cur_filepath.clone(), logic_token, "logic operator function");
                         std::process::exit(1);
                     }
                 };
             }
             _ => {
-                errors::error_unexpected_token_type(constants_type, self.parser.line, "logic operator function");
+                errors::error_unexpected_token_type(self.cur_filepath.clone(), constants_type, self.parser.line, "logic operator function");
                 std::process::exit(1);
             }
         };
@@ -536,13 +558,13 @@ impl Compiler {
                         self.emit_byte(OpCode::CONSTANT_NULL(pos), self.parser.line);
                     },
                     _ => {
-                        errors::error_unexpected_keyword(val, self.parser.line, "bool function");
+                        errors::error_unexpected_keyword(self.cur_filepath.clone(), val, self.parser.line, "bool function");
                         std::process::exit(1);
                     }
                 }
             }
             _ => {
-                errors::error_unexpected(self.parser.prev.clone(), "bool function");
+                errors::error_unexpected(self.cur_filepath.clone(), self.parser.prev.clone(), "bool function");
                 std::process::exit(1);
             }
         };
@@ -554,7 +576,7 @@ impl Compiler {
                 let value: i64 = match self.parser.prev.value.iter().collect::<String>().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        errors::conversion_error("Vec<char>", "i64");
+                        errors::conversion_error(self.cur_filepath.clone(), "Vec<char>", "i64");
                         std::process::exit(1);
                     },
                 };
@@ -567,7 +589,7 @@ impl Compiler {
                 let value: f64 = match self.parser.prev.value.iter().collect::<String>().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        errors::conversion_error("Vec<char>", "f64");
+                        errors::conversion_error(self.cur_filepath.clone(), "Vec<char>", "f64");
                         std::process::exit(1);
                     },
                 };
@@ -577,7 +599,7 @@ impl Compiler {
                 self.emit_byte(OpCode::CONSTANT_FLOAT(pos), self.parser.line);
             }
             _ => {
-                errors::error_unexpected(self.parser.prev.clone(), "number function");
+                errors::error_unexpected(self.cur_filepath.clone(), self.parser.prev.clone(), "number function");
                 std::process::exit(1);
             },
         }
@@ -609,7 +631,7 @@ impl Compiler {
                     TokenType::SLASH => self.emit_byte(OpCode::DIV_INT, self.parser.line),
                     TokenType::MOD => self.emit_byte(OpCode::MOD_INT, self.parser.line),
                     _ => {
-                        errors::error_unexpected(arithmetic_token, "arithmetic function");
+                        errors::error_unexpected(self.cur_filepath.clone(), arithmetic_token, "arithmetic function");
                         std::process::exit(1);
                     }
                 };
@@ -622,7 +644,7 @@ impl Compiler {
                     TokenType::SLASH => self.emit_byte(OpCode::DIV_FLOAT, self.parser.line),
                     TokenType::MOD => self.emit_byte(OpCode::MOD_FLOAT, self.parser.line),
                     _ => {
-                        errors::error_unexpected(arithmetic_token, "arithmetic function");
+                        errors::error_unexpected(self.cur_filepath.clone(), arithmetic_token, "arithmetic function");
                         std::process::exit(1);
                     }
                 };
@@ -631,13 +653,13 @@ impl Compiler {
                 match arithmetic_token.token_type {
                     TokenType::PLUS => self.emit_byte(OpCode::ADD_STRING, self.parser.line),
                     _ => {
-                        errors::error_unexpected(arithmetic_token, "arithmetic function");
+                        errors::error_unexpected(self.cur_filepath.clone(), arithmetic_token, "arithmetic function");
                         std::process::exit(1);
                     }        
                 };
             },
             _ => {
-                errors::error_unexpected_token_type(constants_type, self.parser.line, "arithmetic function");
+                errors::error_unexpected_token_type(self.cur_filepath.clone(), constants_type, self.parser.line, "arithmetic function");
                 std::process::exit(1);
             }
         };
@@ -645,7 +667,7 @@ impl Compiler {
 
     pub fn check_static_types(&self, a_token_type: &TokenType, b_type: TokenType, op: &Token) -> TokenType {
         if !self.check_num_types(a_token_type.clone(), b_type) {
-            errors::error_message("COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types: {:?} {} {:?} {}:",
                 b_type,
                 op.value.iter().collect::<String>(),
                 a_token_type,
@@ -732,7 +754,7 @@ impl Compiler {
                 self.parser.consume(TokenType::LEFT_PAREN);
 
                 if output_type != list_type {
-                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning list instance, expected: {:?} found: {:?} {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while assigning list instance, expected: {:?} found: {:?} {}:",
                         list_type,
                         output_type,
                         self.parser.line,
@@ -759,7 +781,7 @@ impl Compiler {
             };
 
             if list_type != value_type {
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring list, expected: \"{:?}\" found: {:?} {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while declaring list, expected: \"{:?}\" found: {:?} {}:",
                     list_type,
                     value_type,
                     self.parser.line,
@@ -792,7 +814,7 @@ impl Compiler {
                     val => val.to_string(),
                 };
 
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                 format!("Expected to find {} but found {:?} {}:", 
                     list_type_error, 
                     value_type,
@@ -846,7 +868,7 @@ impl Compiler {
                     }
                 },
                 _ => {                    
-                    errors::error_message("COMPILING ERROR", format!("Cannot find root struct for instance {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Cannot find root struct for instance {}:",
                         self.parser.line,
                     ));
                     std::process::exit(1);
@@ -879,7 +901,7 @@ impl Compiler {
             self.expression();
 
             if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                     TokenType::STRING,
                     self.get_cur_chunk().get_last_value().convert(),
                     self.parser.line,
@@ -912,7 +934,7 @@ impl Compiler {
                     _ => panic!("Error never should be there"),
                 };
                 
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning struct instance, expected: {:?} found: {:?} {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while assigning struct instance, expected: {:?} found: {:?} {}:",
                     var_root_struct_name,
                     value_root_struct_name,
                     self.parser.line,
@@ -936,7 +958,7 @@ impl Compiler {
         let value_type = self.get_cur_chunk().get_last_value().convert();
         let var_type = self.get_cur_locals()[pos as usize].local_type;
         if value_type != var_type {
-            errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                 var_type,
                 value_type,
                 self.parser.line,
@@ -959,7 +981,7 @@ impl Compiler {
         if self.get_cur_chunk().get_last_value().convert() != TokenType::INT {
             let value_type = self.get_cur_chunk().get_last_value().convert();
 
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                 format!("Expected to find INT as index but found: {:?} {}:",  
                 value_type,
                 self.parser.line
@@ -972,7 +994,7 @@ impl Compiler {
                 val.convert()
             }
             _ => {
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                     format!("Unable to convert list_type to TokenType {}:",  
                     self.parser.line
                 ));
@@ -990,7 +1012,7 @@ impl Compiler {
             if self.get_cur_chunk().get_last_value().convert() != list_type_token {
                 let value_type = self.get_cur_chunk().get_last_value().convert();
 
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                     format!("Expected to find {:?} but found: {:?} {}:", 
                     list_type_token, 
                     value_type,
@@ -1048,7 +1070,7 @@ impl Compiler {
             let list_type = match self.get_cur_locals()[pos as usize].is_special.clone() {
                 SpecialType::List(val) => val,
                 _ => {
-                    errors::error_message("COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Unexpected special type while getting element: \"{:?}\" {}:",
                         self.get_cur_instances()[pos as usize].is_special.clone(),
                         self.parser.line,
                     ));
@@ -1099,7 +1121,7 @@ impl Compiler {
             },
             TokenType::KEYWORD(Keywords::INSTANCE(_)) => return,
             local_type => {
-                errors::error_message("COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.parser.line));
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Unexpected local type \"{:?}\" {}:", local_type, self.parser.line));
                 std::process::exit(1);
             }
         };
@@ -1112,7 +1134,7 @@ impl Compiler {
 
         let var_name = self.parser.prev.value.iter().collect::<String>();
         if self.get_cur_locals().iter().any(| local | local.name == var_name ) {
-            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.parser.line));
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", var_name, self.parser.line));
             std::process::exit(1);
         }
 
@@ -1124,7 +1146,7 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::STRING) |
             TokenType::IDENTIFIER => {},
             _ => {
-                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.parser.line));
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected var type after \":\" {}:", self.parser.line));
                 std::process::exit(1);
             },
         };
@@ -1137,7 +1159,7 @@ impl Compiler {
             }
             TokenType::KEYWORD(keyword) => keyword.convert(),
             _ => {
-                errors::error_message("COMPILER ERROR", format!("Expected var type after \":\" {}:", self.parser.line));
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected var type after \":\" {}:", self.parser.line));
                 std::process::exit(1);
             },
         };
@@ -1157,7 +1179,7 @@ impl Compiler {
 
             let value_type = self.get_cur_chunk().get_last_value().convert();
             if value_type != var_type {
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring var, expected: {:?} found: {:?} {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while declaring var, expected: {:?} found: {:?} {}:",
                     var_type,
                     value_type,
                     self.parser.line,
@@ -1184,7 +1206,7 @@ impl Compiler {
                 self.get_struct_symbol_pos("List".to_string())
             },
             _ => {
-                errors::error_message("COMPILING ERROR", format!("Type doesn't contains any fields: {:?} {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Type doesn't contains any fields: {:?} {}:",
                     self.get_cur_chunk().get_last_value(),
                     self.parser.line,
                 ));
@@ -1199,7 +1221,7 @@ impl Compiler {
             match self.structs.get(&root_struct_name).unwrap().methods.get(&field_name) {
                 Some(mth) => {
                     if matches!(list_type, TokenType::STRUCT(_)) || matches!(list_type, TokenType::STRING) && mth.name == "sort" {
-                        errors::error_message("COMPILING ERROR", format!("Method: SORT is not declared for this type of list \"{}\" {}:",
+                        errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Method: SORT is not declared for this type of list \"{}\" {}:",
                             list_type,
                             self.parser.line,
                         ));
@@ -1209,7 +1231,7 @@ impl Compiler {
                     self.mth_call(mth.output_type, mth.arg_count, mth.arg_type.clone(), list_type);
                 },
                 None => {
-                    errors::error_message("COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Method: \"{}\" is not declared in struct \"{}\" {}:",
                         field_name,
                         root_struct_name,
                         self.parser.line,
@@ -1236,7 +1258,7 @@ impl Compiler {
             .unwrap_or(-1);
 
         if field_index == -1 {
-            errors::error_message("COMPILING ERROR", format!("Field: \"{}\" is not declared in struct \"{}\" {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Field: \"{}\" is not declared in struct \"{}\" {}:",
                 field_name,
                 root_struct_name,
                 self.parser.line,
@@ -1252,7 +1274,7 @@ impl Compiler {
             if self.get_cur_chunk().get_last_value().convert() != self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type {
                 let value_type = self.get_cur_chunk().get_last_value().convert();
 
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                 format!("Expected to find {:?} but found: {:?} {}:", 
                     self.structs.get(&root_struct_name).unwrap().locals[field_index as usize].local_type, 
                     value_type,
@@ -1304,7 +1326,7 @@ impl Compiler {
         }
         
         if self.parser.cur.token_type != TokenType::EQ {
-            errors::error_message("COMPILING ERROR", format!("Struct cannot be left undeclared {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Struct cannot be left undeclared {}:",
                 self.parser.line,
             ));
             std::process::exit(1);
@@ -1315,7 +1337,7 @@ impl Compiler {
                 self.expression();
                 
                 if !matches!(self.get_cur_chunk().get_last_value(), Value::String(_)) {
-                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while assigning var, expected: {:?} found: {:?} {}:",
                         TokenType::STRING,
                         self.get_cur_chunk().get_last_value().convert(),
                         self.parser.line,
@@ -1329,7 +1351,7 @@ impl Compiler {
             }
             
             if self.parser.cur.token_type != TokenType::IDENTIFIER {
-                errors::error_message("COMPILING ERROR", format!("Expected to find instance or function call {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find instance or function call {}:",
                     self.parser.line,
                 ));
                 std::process::exit(1);
@@ -1359,7 +1381,7 @@ impl Compiler {
                 self.parser.consume(TokenType::LEFT_PAREN);
 
                 if output_symbol_pos != var_pos {
-                    errors::error_message("COMPILING ERROR", format!("Mismatched types while assigning struct instance, expected: {:?} found: {:?} {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while assigning struct instance, expected: {:?} found: {:?} {}:",
                         self.parser.symbols[var_pos as usize].output_type,
                         self.parser.symbols[output_symbol_pos].name,
                         self.parser.line,
@@ -1403,7 +1425,7 @@ impl Compiler {
             };
             
             if var_pos != value_pos {
-                errors::error_message("COMPILING ERROR", format!("Mismatched types while declaring instance, expected: {:?} found: {:?} {}:",
+                errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while declaring instance, expected: {:?} found: {:?} {}:",
                     self.parser.symbols[var_pos].name.clone(),
                     self.get_cur_chunk().get_last_value().convert(),
                     self.parser.line,
@@ -1427,7 +1449,7 @@ impl Compiler {
             if self.get_cur_chunk().get_last_value().convert() != self.structs.get(&root_struct_name).unwrap().locals[field_counts].local_type {
                 let value_type = self.get_cur_chunk().get_last_value().convert();
 
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                 format!("Expected to find {:?} but found: {:?} {}:", 
                     self.structs.get(&root_struct_name).unwrap().locals[field_counts].local_type, 
                     value_type,
@@ -1447,7 +1469,7 @@ impl Compiler {
         let instance_obj = StructInstance::new();
 
         if field_counts != self.parser.symbols[var_pos].arg_count {
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
             format!("Expected to find {} fields but found: {} {}:", self.parser.symbols[var_pos].arg_count, field_counts, self.parser.line));
             std::process::exit(1);
         }
@@ -1462,7 +1484,7 @@ impl Compiler {
         let name = self.parser.prev.value.iter().collect::<String>();
 
         if self.scope_depth != 0 {
-            errors::error_message("COMPILE ERROR", format!("Struct \"{}\" declaration inside bounds {}:", name, self.parser.line));
+            errors::error_message(self.cur_filepath.clone(), "COMPILE ERROR", format!("Struct \"{}\" declaration inside bounds {}:", name, self.parser.line));
             std::process::exit(1)
         }
 
@@ -1485,7 +1507,7 @@ impl Compiler {
                         self.parser.consume(TokenType::IDENTIFIER);
                         self.parser.consume(TokenType::LESS);
 
-                        let list_type = self::Parser::list_type_value(&self.parser.symbols, self.parser.cur.clone(), struct_name.clone(), self.parser.line);
+                        let list_type = self::Parser::list_type_value(&self.parser.symbols, self.parser.cur.clone(), struct_name.clone(), self.parser.line, self.cur_filepath.clone());
 
                         self.parser.advance();
 
@@ -1499,7 +1521,7 @@ impl Compiler {
                             .unwrap_or(-1);
 
                         if pos == -1 {
-                            errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
+                            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
                             std::process::exit(1);
                         }
 
@@ -1507,7 +1529,7 @@ impl Compiler {
                     }
                 },
                 _ => {
-                    errors::error_message("COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
+                    errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected field type after \":\" {}:", self.parser.line));
                     std::process::exit(1);
                 },
             };
@@ -1564,7 +1586,7 @@ impl Compiler {
                         val => val.to_string(),
                     };
 
-                    errors::error_message("COMPILER ERROR",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                     format!("Expected to find {:?} as argument type but found: {:?} {}:", mth_arg_error, self.get_cur_chunk().get_last_value().convert(), self.parser.line));
                     std::process::exit(1);
                 }
@@ -1578,7 +1600,7 @@ impl Compiler {
         self.changing_fn = false;
 
         if arg_count != mth_arg_count {
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
             format!("Expected to find {} arguments but found: {} {}:", mth_arg_count, arg_count, self.parser.line));
             std::process::exit(1);
         }
@@ -1607,7 +1629,7 @@ impl Compiler {
                     TokenType::BOOL =>  Value::Bool(false),
                     TokenType::STRUCT(val) => Value::InstanceRef(val),
                     _ => {
-                        errors::error_message("COMPILER ERROR",
+                        errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                         format!("List of {:?} is not implemented yet {}:", 
                             list_type, 
                             self.parser.line
@@ -1619,7 +1641,7 @@ impl Compiler {
                 self.get_cur_chunk().push_value(list_type_value);
             }
             output_type => {
-                errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
                 std::process::exit(1);
             }
         };
@@ -1632,7 +1654,7 @@ impl Compiler {
             let name = self.parser.cur.value.iter().collect::<String>();
 
             if self.structs.get(&struct_name).unwrap().methods.contains_key(&name) {
-                errors::error_message("COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_name, self.parser.line));
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Method: \"{}\" is already defined for struct: \"{}\" {}:", name, struct_name, self.parser.line));
                 std::process::exit(1);
             }
 
@@ -1654,7 +1676,7 @@ impl Compiler {
             .unwrap_or(-1);
 
         if pos == -1 {
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
             format!("Symbol: \"{}\" is not defined as function in this scope {}:", fn_name, self.parser.line));
             std::process::exit(1);
         }
@@ -1671,7 +1693,7 @@ impl Compiler {
             .unwrap_or(-1);
 
         if pos == -1 {
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
             format!("Symbol: \"{}\" is not defined as struct in this scope {}:", struct_name, self.parser.line));
             std::process::exit(1);
         }
@@ -1688,7 +1710,7 @@ impl Compiler {
             .unwrap_or(-1);
 
         if pos == -1 {
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
             format!("Symbol: \"{}\" is not defined as var in this scope {}:", name, self.parser.line));
             std::process::exit(1);
         }
@@ -1714,7 +1736,7 @@ impl Compiler {
             TokenType::BOOL =>  Value::Bool(false),
             TokenType::STRUCT(val) => Value::InstanceRef(val),
             _ => {
-                errors::error_message("COMPILER ERROR",
+                errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                 format!("List of {:?} is not implemented yet {}:", 
                     list_token.token_type, 
                     self.parser.line
@@ -1753,7 +1775,7 @@ impl Compiler {
                         val => val.to_string(),
                     };
 
-                    errors::error_message("COMPILER ERROR",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
                     format!("Expected to find {:?} as argument type but found: {:?} {}:", fn_arg_error, self.get_cur_chunk().get_last_value().convert(), self.parser.line));
                     std::process::exit(1);
                 }
@@ -1781,7 +1803,7 @@ impl Compiler {
         }
 
         if arg_count != self.parser.symbols[self.symbol_to_hold].arg_count {
-            errors::error_message("COMPILER ERROR",
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR",
             format!("Expected to find {} arguments but found: {} {}:", self.parser.symbols[self.symbol_to_hold].arg_count, arg_count, self.parser.line));
             std::process::exit(1);
         }
@@ -1825,7 +1847,7 @@ impl Compiler {
                         Keywords::STRING => TokenType::STRING,
                         Keywords::INSTANCE(pos) => TokenType::STRUCT(pos),
                         t => {
-                            errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", t, self.parser.line));
+                            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", t, self.parser.line));
                             std::process::exit(1);
                         }
                     };
@@ -1833,7 +1855,7 @@ impl Compiler {
                     self.get_cur_chunk().push_value(Value::List(out));                                       
                 },
                 output_type => {
-                    errors::error_message("COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
+                    errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Unexpected output type \"{:?}\" {}:", output_type, self.parser.line));
                     std::process::exit(1);
                 }
             };
@@ -1844,7 +1866,7 @@ impl Compiler {
         let name = self.parser.cur.value.iter().collect::<String>();
 
         if (self.scope_depth != 0 && !is_mth) || (self.scope_depth == 0 && is_mth) {
-            errors::error_message("COMPILE ERROR", format!("Function/Method \"{}\" declaration inside bounds {}:", name, self.parser.line));
+            errors::error_message(self.cur_filepath.clone(), "COMPILE ERROR", format!("Function/Method \"{}\" declaration inside bounds {}:", name, self.parser.line));
             std::process::exit(1)
         }
 
@@ -1866,7 +1888,7 @@ impl Compiler {
 
             if arg_name == "self" && is_mth {
                 if function.arg_count != 1 {
-                    errors::error_message("COMPILE ERROR", format!("\"self\" keyword need to be first in argument list {}:", self.parser.line));
+                    errors::error_message(self.cur_filepath.clone(), "COMPILE ERROR", format!("\"self\" keyword need to be first in argument list {}:", self.parser.line));
                     std::process::exit(1)
                 }
 
@@ -1892,7 +1914,7 @@ impl Compiler {
                 }
                 TokenType::KEYWORD(keyword) => keyword.convert(),
                 _ => {
-                    errors::error_message("COMPILER ERROR", format!("Expected arg type after \":\" {}:", self.parser.line));
+                    errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected arg type after \":\" {}:", self.parser.line));
                     std::process::exit(1);
                 }
             };
@@ -1962,7 +1984,7 @@ impl Compiler {
                     self.parser.consume(TokenType::IDENTIFIER);
                     self.parser.consume(TokenType::LESS);
 
-                    let list_type = self::Parser::list_type_value(&self.parser.symbols, self.parser.cur.clone(), val.clone(), self.parser.line);
+                    let list_type = self::Parser::list_type_value(&self.parser.symbols, self.parser.cur.clone(), val.clone(), self.parser.line, self.cur_filepath.clone());
 
                     function.output_type = TokenType::LIST(list_type);
 
@@ -1972,7 +1994,7 @@ impl Compiler {
                 } else {
                     
                     if !self.structs.contains_key(&val) {
-                        errors::error_message("COMPILER ERROR", format!("Unexpected return type {:?} {}:", self.parser.cur.token_type, self.parser.line));
+                        errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Unexpected return type {:?} {}:", self.parser.cur.token_type, self.parser.line));
                         std::process::exit(1);
                     }
                     
@@ -2048,7 +2070,7 @@ impl Compiler {
             TokenType::KEYWORD(Keywords::VAR) => {
                 self.var_declare();
             },
-            _ => errors::error_unexpected(self.parser.prev.clone(), "declare function"),
+            _ => errors::error_unexpected(self.cur_filepath.clone(), self.parser.prev.clone(), "declare function"),
         }
     }
 
@@ -2086,7 +2108,7 @@ impl Compiler {
         };
 
         if var_type != self.cur_function.output_type {
-            errors::error_message("COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Mismatched types while returning function, expected: {:?} found: {:?} {}:",
                 self.cur_function.output_type,
                 var_type,
                 self.parser.line,
@@ -2099,7 +2121,7 @@ impl Compiler {
 
     pub fn if_stmt(&mut self) {
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
-            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
                 self.parser.line,
             ));
@@ -2111,7 +2133,7 @@ impl Compiler {
         if self.parser.symbols.len() > 1 && 
         self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::KEYWORD(Keywords::FN) &&
         self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
-            errors::error_message("COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
                 self.parser.symbols[self.symbol_to_hold].output_type,
                 self.parser.line,
             ));
@@ -2168,7 +2190,7 @@ impl Compiler {
         let loop_start_index = self.get_cur_chunk().code.len();
 
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
-            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
                 self.parser.line,
             ));
@@ -2180,7 +2202,7 @@ impl Compiler {
         if self.parser.symbols.len() > 1 && 
         self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::KEYWORD(Keywords::FN) &&
         self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
-            errors::error_message("COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
                 self.parser.symbols[self.symbol_to_hold].output_type,
                 self.parser.line,
             ));
@@ -2235,7 +2257,7 @@ impl Compiler {
         let identifier = self.parser.prev.value.iter().collect::<String>();
        
         if self.get_cur_locals().iter().any(| local | local.name == identifier ) {
-            errors::error_message("COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", identifier, self.parser.line));
+            errors::error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Symbol: \"{}\" is already defined {}:", identifier, self.parser.line));
             std::process::exit(1);
         }
         
@@ -2249,7 +2271,7 @@ impl Compiler {
         self.expression();
 
         if !matches!(self.get_cur_chunk().get_last_value(), Value::Int(_)) { 
-            errors::error_message("COMPILING ERROR", format!("For statement: values in range must be INT type, found: {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("For statement: values in range must be INT type, found: {:?} {}:",
                 self.get_cur_chunk().get_last_value().clone(),
                 self.parser.line,
             ));
@@ -2261,7 +2283,7 @@ impl Compiler {
         self.expression();
 
         if !matches!(self.get_cur_chunk().get_last_value(), Value::Int(_)) { 
-            errors::error_message("COMPILING ERROR", format!("For statement: values in range must be INT type, found: {:?} {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("For statement: values in range must be INT type, found: {:?} {}:",
                 self.get_cur_chunk().get_last_value().clone(),
                 self.parser.line,
             ));
@@ -2277,7 +2299,7 @@ impl Compiler {
 
             match self.get_cur_chunk().get_last_instruction().op {
                 OpCode::FUNCTION_CALL(_) => {
-                    errors::error_message("COMPILING ERROR", format!("Functions cannot be used as STEP BY argument {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Functions cannot be used as STEP BY argument {}:",
                         self.parser.line,
                     ));
                     std::process::exit(1);
@@ -2368,7 +2390,7 @@ impl Compiler {
         self.emit_byte(OpCode::IF_STMT_OFFSET(0), self.parser.line);
 
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
-            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
                 self.parser.line,
             ));
@@ -2390,7 +2412,7 @@ impl Compiler {
         self.emit_byte(OpCode::JUMP(0), self.parser.line);
 
         if self.parser.cur.token_type == TokenType::LEFT_BRACE {
-            errors::error_message("COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
+            errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find expression after {} statement {}:",
                 self.parser.prev.value.iter().collect::<String>().to_ascii_uppercase(),
                 self.parser.line,
             ));
@@ -2409,14 +2431,24 @@ impl Compiler {
 
     fn import_file(&mut self) {
         if self.parser.cur.token_type != TokenType::STRING {
-            error_message("COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", self.parser.line));
+            error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", self.parser.line));
             std::process::exit(1);
         }
         self.parser.consume(TokenType::STRING);
         
         let mut file_path = self.parser.prev.value.iter().collect::<String>();
         file_path = self.parser.base_dir.clone() + &"/" + &file_path;
-                
+
+        if file_path == self.main_file {
+            error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected to find path to file after \"import\" keyword {}:", self.parser.line));
+            std::process::exit(1);
+        }
+
+        if self.compiled_files.contains_key(&file_path) {
+            return
+        }
+        self.compiled_files.insert(file_path.clone(), 1);
+        
         let enclosing_tokens = self.parser.tokens.clone();
         let enclosing_cur = self.parser.cur.clone();
         let enclosing_prev = self.parser.prev.clone();
@@ -2462,7 +2494,7 @@ impl Compiler {
             },
             TokenType::KEYWORD(Keywords::ELIF) => {
                 if self.parser.prev.token_type != TokenType::RIGHT_BRACE {
-                    error_message("COMPILER ERROR", format!("Expected to find }} before ELIF statment {}:", self.parser.line));
+                    error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected to find }} before ELIF statment {}:", self.parser.line));
                     std::process::exit(1);
                 }
                 self.parser.advance();
@@ -2470,7 +2502,7 @@ impl Compiler {
             },
             TokenType::KEYWORD(Keywords::ELSE) => {
                 if self.parser.prev.token_type != TokenType::RIGHT_BRACE {
-                    error_message("COMPILER ERROR", format!("Expected to find }} before ELSE statment {}:", self.parser.line));
+                    error_message(self.cur_filepath.clone(), "COMPILER ERROR", format!("Expected to find }} before ELSE statment {}:", self.parser.line));
                     std::process::exit(1);
                 }
                 self.parser.advance();
@@ -2488,7 +2520,7 @@ impl Compiler {
                 self.parser.advance();
 
                 if self.scope_depth <= 1 {
-                    errors::error_message("COMPILING ERROR", format!("BREAK statment used out of loop {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("BREAK statment used out of loop {}:",
                         self.parser.line,
                     ));
                     std::process::exit(1);
@@ -2517,7 +2549,7 @@ impl Compiler {
                 self.parser.advance();
 
                 if self.scope_depth <= 1 {
-                    errors::error_message("COMPILING ERROR", format!("CONTINUE statment used out of loop {}:",
+                    errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("CONTINUE statment used out of loop {}:",
                         self.parser.line,
                     ));
                     std::process::exit(1);
@@ -2566,7 +2598,7 @@ impl Compiler {
 
         self.parser.get_builtin_symbols(string_type.methods.len());
 
-        self.functions = self.parser.get_symbols_and_functions(true);
+        self.functions = self.parser.get_symbols_and_functions(true, self.main_file.clone());
         self.get_cur_chunk().push(Instruction { op: OpCode::STRUCT_DEC(string_type.clone()), line: 0 });
         self.structs.insert("String".to_string(), string_type);
 
@@ -2596,7 +2628,7 @@ impl Compiler {
         self.parser.advance();
 
         if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-            errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
+            errors::error_message(self.cur_filepath.clone(), "PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
                 self.parser.prev.token_type,
                 self.parser.prev.value.iter().collect::<String>(),
                 self.parser.line,
@@ -2608,7 +2640,7 @@ impl Compiler {
         match rule.prefix {
             Some(f) => f(self),
             _ => {
-                errors::error_message("PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.parser.line));
+                errors::error_message(self.cur_filepath.clone(), "PARSING ERROR", format!("Expected prefix for: {:?}, {}:", self.parser.prev.token_type, self.parser.line));
                 std::process::exit(1);
             },
         };
@@ -2617,7 +2649,7 @@ impl Compiler {
             self.parser.advance();
 
             if !self.parser.rules.contains_key(&self.parser.prev.token_type) {
-                errors::error_message("PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
+                errors::error_message(self.cur_filepath.clone(), "PARSING ERROR", format!("Cannot get a parse rule for: {:?}: \"{}\", {}:",
                     self.parser.prev.token_type,
                     self.parser.prev.value.iter().collect::<String>(),
                     self.parser.line,
@@ -2628,7 +2660,7 @@ impl Compiler {
             match rule.infix {
                 Some(f) => f(self),
                 _ => {
-                    errors::error_message("PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.parser.line));
+                    errors::error_message(self.cur_filepath.clone(), "PARSING ERROR", format!("Expected infix for: {:?}, {}:", self.parser.prev.token_type, self.parser.line));
                     std::process::exit(1);
                 },
             }
@@ -2637,7 +2669,7 @@ impl Compiler {
 
     pub fn emit_byte(&mut self, op: OpCode, line: u32) {
         if self.scope_depth == 0 {
-            errors::error_message("PARSER ERROR", format!("Expression found outside of bounds {}:",self.parser.line));
+            errors::error_message(self.cur_filepath.clone(), "PARSER ERROR", format!("Expression found outside of bounds {}:",self.parser.line));
             std::process::exit(1)
         }
         self.get_cur_chunk().push(Instruction{ op, line });

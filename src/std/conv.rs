@@ -2,7 +2,7 @@ use crate::{compiler::errors::error_message, vm::value::Value, objects::string::
 
 pub fn conv_to_float(args: Vec<Value>) -> Value {
     if args.len() != 1 {
-        error_message("RUNTIME ERROR", "CONV only takes one argument".to_string());
+        error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", "CONV only takes one argument".to_string());
         std::process::exit(1);
     }
 
@@ -11,7 +11,7 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
             let val = val_untrimed.trim().to_string();
             
             if !StringMethods::is_digit(args).get_bool() {
-                error_message("RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
+                error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
                 std::process::exit(1);
             }
             
@@ -22,7 +22,7 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
             match val.parse::<f64>() {
                 Ok(v) => return Value::Float(v),
                 Err(e) => {
-                    error_message("RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
+                    error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
                     std::process::exit(1);
                 },
             }
@@ -31,7 +31,7 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
             return Value::Float(val as f64);
         }
         _ => {
-            error_message("RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));
+            error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));
             std::process::exit(1);
         }
     }
@@ -39,7 +39,7 @@ pub fn conv_to_float(args: Vec<Value>) -> Value {
 
 pub fn conv_to_int(args: Vec<Value>) -> Value {
     if args.len() != 1 {
-        error_message("RUNTIME ERROR", "CONV only takes one argument".to_string());
+        error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", "CONV only takes one argument".to_string());
         std::process::exit(1);
     }
 
@@ -48,7 +48,7 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
             let val = val_untrimed.trim().to_string();
             
             if !StringMethods::is_digit(args).get_bool() {
-                error_message("RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
+                error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("Cannot CONV this string, because it doesn't contains only digits"));
                 std::process::exit(1);
             }
             
@@ -59,7 +59,7 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
             match val.parse::<i64>() {
                 Ok(v) => return Value::Int(v),
                 Err(e) => {
-                    error_message("RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
+                    error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
                     std::process::exit(1);
                 },
             }
@@ -68,7 +68,7 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
             return Value::Int(val as i64);
         }
         _ => {
-            error_message("RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));
+            error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));
             std::process::exit(1);
         }
     }
@@ -76,7 +76,7 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
 
 pub fn conv_to_string(args: Vec<Value>) -> Value {
     if args.len() != 1 {
-        error_message("RUNTIME ERROR", "CONV only takes one argument".to_string());
+        error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", "CONV only takes one argument".to_string());
         std::process::exit(1);
     }
 
@@ -88,7 +88,7 @@ pub fn conv_to_string(args: Vec<Value>) -> Value {
             return Value::String(val.to_string());
         }
         _ => {
-            error_message("RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));
+            error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));
             std::process::exit(1);
         }
     }

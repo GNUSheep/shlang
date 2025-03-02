@@ -5,7 +5,7 @@ use super::print::print;
 
 pub fn input(args: Vec<Value>) -> Value {
     if args.len() > 1 {
-        error_message("RUNTIME ERROR", "Too much arguments for INPUT function".to_string());
+        error_message("shlang/std/input.rs".to_string(), "RUNTIME ERROR", "Too much arguments for INPUT function".to_string());
         std::process::exit(1);
     }
 
@@ -22,7 +22,7 @@ pub fn input(args: Vec<Value>) -> Value {
             buffer = buffer.trim_end_matches('\n').to_string();
         },
         Err(_) => {
-            error_message("INPUT ERROR", "Failed to get input".to_string());
+            error_message("shlang/std/input.rs".to_string(), "INPUT ERROR", "Failed to get input".to_string());
             std::process::exit(1);
         },
     }

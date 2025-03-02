@@ -28,7 +28,7 @@ impl Value {
         match self {
             Value::Float(val) => return *val,
             _ => {
-                errors::conversion_error(&format!("Enum Value<{:?}>", self), "f64");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "f64");
                 std::process::exit(1);
             },
         }
@@ -38,7 +38,7 @@ impl Value {
         match self {
             Value::Int(val) => return *val,
             _ => {
-                errors::conversion_error(&format!("Enum Value<{:?}>", self), "i64");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "i64");
                 std::process::exit(1);
             },
         }
@@ -48,7 +48,7 @@ impl Value {
         match self {
             Value::Bool(val) => return *val,
             _ => {
-                errors::conversion_error(&format!("Enum Value<{:?}>", self), "bool");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "bool");
                 std::process::exit(1);
             },
         }
@@ -58,7 +58,7 @@ impl Value {
         match self {
             Value::Chunk(val) => return val.clone(),
             _ => {
-                errors::conversion_error(&format!("Enum Value<{:?}>", self), "chunk");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "chunk");
                 std::process::exit(1);
             },
         }
@@ -68,7 +68,7 @@ impl Value {
         match self {
             Value::Fn(val) => return *val,
             _val => {
-                errors::conversion_error(&format!("Enum Value<{:?}>", self), "fn");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "fn");
                 std::process::exit(1);
             },
         }
@@ -79,7 +79,7 @@ impl Value {
             Value::String(val) => return val.clone(),
             _ => {
                 println!("{:?}", self);
-                errors::conversion_error(&format!("Enum Value<{:?}>", self), "String");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "String");
                 std::process::exit(1);
             },
         }
@@ -111,7 +111,7 @@ impl Neg for Value {
                 value = Value::Bool(!val);
             }
             _ => {
-                errors::conversion_error("Enum Value<_>", "NEG Enum Value<_>");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), "Enum Value<_>", "NEG Enum Value<_>");
                 std::process::exit(1);
             },
         };
@@ -141,7 +141,7 @@ impl Convert for Value {
                     TokenType::STRING => Keywords::STRING,
                     TokenType::STRUCT(pos) => Keywords::INSTANCE(pos), 
                     _ => {
-                        errors::conversion_error("Enum Value<_>", "TokenType");
+                        errors::conversion_error("shlang/vm/value.rs".to_string(), "Enum Value<_>", "TokenType");
                         std::process::exit(1);
                     },
                 };
@@ -150,7 +150,7 @@ impl Convert for Value {
             },
             Value::InstanceRef(val) => TokenType::STRUCT(val), 
             _ => {
-                errors::conversion_error("Enum Value<_>", "TokenType");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), "Enum Value<_>", "TokenType");
                 std::process::exit(1);
             },
         }
@@ -166,11 +166,11 @@ impl std::fmt::Display for Value {
             Value::String(val) => write!(output, "{}", val),
             Value::Null => write!(output, "null"),
             Value::InstanceRef(_) => {
-                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"Struct/List Object\" to stdout is not allowed"));
+                errors::error_message("shlang/vm/value.rs".to_string(), "DISPLAY NOT IMPLEMENTED", format!("Writing \"Struct/List Object\" to stdout is not allowed"));
                 std::process::exit(1);
             },
             v => {
-                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
+                errors::error_message("shlang/vm/value.rs".to_string(), "DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
                 std::process::exit(1);
             },
         }

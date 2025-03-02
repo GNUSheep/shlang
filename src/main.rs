@@ -12,7 +12,7 @@ fn run(file_path: &String) {
     let mut scanner = frontend::lexer::Scanner::init(&source_code);
     let tokens = scanner.get_tokens();
 
-    let mut compiler = compiler::compiler::Compiler::new(tokens, base_dir);
+    let mut compiler = compiler::compiler::Compiler::new(tokens, base_dir, file_path.clone(), file_path.clone());
 
     let main_chunk = compiler.compile();
     // println!("{:?}", main_chunk);

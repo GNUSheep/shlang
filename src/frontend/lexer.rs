@@ -120,7 +120,7 @@ impl Scanner {
             .unwrap_or(TokenType::IDENTIFIER);
 
         return Token {
-            token_type: token_type,
+            token_type,
             value: self.source_code[self.start..self.cur].to_vec(),
             line: self.line,
         };
@@ -137,7 +137,7 @@ impl Scanner {
         }
 
         return Token {
-            token_type: token_type,
+            token_type,
             value: self.source_code[self.start..self.cur].to_vec(),
             line: self.line,
         };
@@ -255,7 +255,7 @@ pub fn get_file(file_path: &String) -> (String, String) {
     let mut file = match File::open(file_path) {
         Ok(file) => file,
         Err(_) => {
-            error_message("FILE OPEN", format!("Error while trying to open a file: {:?}", file_path));
+            error_message("shlang/frontend/lexer.rs".to_string(), "FILE OPEN", format!("Error while trying to open a file: {:?}", file_path));
             std::process::exit(1);
         },
     };
@@ -264,7 +264,7 @@ pub fn get_file(file_path: &String) -> (String, String) {
     match file.read_to_string(&mut buffer) {
         Ok(_) => {}
         Err(_) => {
-            error_message("FILE OPEN", format!("Error while trying to read a file: {:?}", file_path));
+            error_message("shlang/frontend/lexer.rs".to_string(), "FILE OPEN", format!("Error while trying to read a file: {:?}", file_path));
             std::process::exit(1);
         }
     };

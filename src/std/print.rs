@@ -11,7 +11,7 @@ pub fn println(args: Vec<Value>) -> Value {
     match write!(output, "\n") {
         Ok(_) => {},
         Err(_) => {
-            errors::error_message("PRINTING ERROR", format!("Failed to write newline to stdout"));
+            errors::error_message("shlang/std/print.rs".to_string(), "PRINTING ERROR", format!("Failed to write newline to stdout"));
             std::process::exit(1);
         },
     };
@@ -27,7 +27,7 @@ pub fn print(args: Vec<Value>) -> Value {
         match write!(output, "{}", arg) {
             Ok(_) => {},
             Err(_) => {
-                errors::error_message("PRINTING ERROR", format!("Failed to write to stdout {}", arg));
+                errors::error_message("shlang/std/print.rs".to_string(), "PRINTING ERROR", format!("Failed to write to stdout {}", arg));
                 std::process::exit(1);
             },
         };
@@ -36,7 +36,7 @@ pub fn print(args: Vec<Value>) -> Value {
     match output.flush() {
         Ok(_) => {},
         Err(_) => {
-            errors::error_message("PRINTING ERROR", format!("Failed to flush stdout"));
+            errors::error_message("shlang/std/print.rs".to_string(), "PRINTING ERROR", format!("Failed to flush stdout"));
             std::process::exit(1);
         },
     }

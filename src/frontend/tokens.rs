@@ -59,7 +59,7 @@ impl std::fmt::Display for TokenType {
             TokenType::BOOL => write!(output, "BOOL"),
             TokenType::STRING => write!(output, "STRING"),
             v => {
-                errors::error_message("DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
+                errors::error_message("shlang/frontend/tokens.rs".to_string(), "DISPLAY NOT IMPLEMENTED", format!("Writing \"{:?}\" to stdout is not allowed", v));
                 std::process::exit(1);
             },
         }
@@ -140,7 +140,7 @@ impl Convert for Keywords {
             Keywords::STRING => TokenType::STRING,
             Keywords::INSTANCE(pos) => TokenType::STRUCT(pos.clone()),
             _ => {
-                errors::conversion_error("Enum Keyword<_>", "TokenType");
+                errors::conversion_error("shlang/frontend/tokens.rs".to_string(), "Enum Keyword<_>", "TokenType");
                 std::process::exit(1);
             },
         }
