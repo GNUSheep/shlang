@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Float(f64),
-    Int(i64),
+    Int(i128),
     Bool(bool),
     Null,
     String(String),
@@ -34,11 +34,11 @@ impl Value {
         }
     }
 
-    pub fn get_int(&self) -> i64 {
+    pub fn get_int(&self) -> i128 {
         match self {
             Value::Int(val) => return *val,
             _ => {
-                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "i64");
+                errors::conversion_error("shlang/vm/value.rs".to_string(), &format!("Enum Value<{:?}>", self), "i128");
                 std::process::exit(1);
             },
         }

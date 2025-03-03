@@ -285,7 +285,7 @@ pub fn sqrt_int(args: Vec<Value>) -> Value {
         }
     };
 
-    Value::Int((a as f64).sqrt() as i64)
+    Value::Int((a as f64).sqrt() as i128)
 }
 
 pub fn sqrt_float(args: Vec<Value>) -> Value {

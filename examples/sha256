@@ -1,0 +1,142 @@
+struct SHA256 {
+	k: List<int>,
+	h: List<int>,
+
+	methods {
+		init(self) {
+			var k_tmp: List<int> = [1116352408, 1899447441, 3049323471, 3921009573, 961987163, 1508970993, 2453635748, 2870763221,
+        3624381080, 310598401, 607225278, 1426881987, 1925078388, 2162078206, 2614888103, 3248222580,
+        3835390401, 4022224774, 264347078, 604807628, 770255983, 1249150122, 1555081692, 1996064986,
+        2554220882, 2821834349, 2952996808, 3210313671, 3336571891, 3584528711, 113926993, 338241895,
+        666307205, 773529912, 1294757372, 1396182291, 1695183700, 1986661051, 2177026350, 2456956037,
+        2730485921, 2820302411, 3259730800, 3345764771, 3516065817, 3600352804, 4094571909, 275423344,
+        430227734, 506948616, 659060556, 883997877, 958139571, 1322822218, 1537002063, 1747873779,
+        1955562222, 2024104815, 2227730452, 2361852424, 2428436474, 2756734187, 3204031479, 3329325298]
+
+			self.k = k_tmp
+			
+			var h_tmp: List<int> = [1779033703, 3144134277, 1013904242, 2773480762,
+        1359893119, 2600822924, 528734635, 1541459225]
+
+			self.h = h_tmp
+		}
+		
+		convert(self) {
+			var message: String = "Hello world"
+			var message_bytes: List<int> = [72, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]
+
+			message_bytes.push(128)
+			while message_bytes.len() * 8 % 512 != 448 {
+				message_bytes.push(0)
+			}
+
+			var message_bit_len: int = message.len() * 8
+			for i in (0,8) {
+				var byte: int = message_bit_len / pow(256, 7 - i)
+				message_bytes.push(byte)
+				message_bit_len = message_bit_len - byte * pow(256, 7 - i)
+			}
+
+			var words: List<int> = []
+			for i in (0, message_bytes.len(), 4) {
+				var a: int = message_bytes[i] * 256 * 256 * 256
+				var b: int = message_bytes[i + 1] * 256 * 256
+				var c: int = message_bytes[i + 2] * 256
+				var d: int = message_bytes[i + 3]
+
+				words.push(a+b+c+d)
+			}
+
+			for chunk_start in (0, words.len(), 16) {
+				var w: List<int> = get_slice(words, chunk_start)
+
+				for i in (0, 48) {
+					w.push(0)
+				}
+
+				for i in (16, 64) {
+					var s0: int = w[i-15] / 128 - w[i-15] / 64 - w[i-15] / 32
+					var s1: int = w[i-2] / 128 - w[i-2] / 64 - w[i-2] / 32
+										
+					var a: int = w[i-16] + s0 + w[i-7] + s1
+					var b: int = pow(256, 4)
+					w[i] = a % b
+				}
+
+				var a: int = self.h[0]
+				var b: int = self.h[1]
+				var c: int = self.h[2]
+				var d: int = self.h[3]
+				var e: int = self.h[4]
+				var f: int = self.h[5]
+				var g: int = self.h[6]
+				var h_t: int = self.h[7]
+
+				for i in (0, 64) {
+					var s1: int = e / 128 - e / 64 - e / 32
+					var ch: int = e * f - f * g
+
+					var temp_a: int = h_t + s1 + ch + self.k[i] + w[i]
+					var temp_b: int = pow(256, 4)
+					
+					var temp1: int = temp_a % temp_b
+
+					var s0: int = a / 128 - a / 64 - a / 32
+					var maj: int = a * b - b * c
+
+					temp_a = s0 + maj
+
+					var temp2: int = temp_a % temp_b
+
+					h_t = g
+					g = f
+					f = e
+
+					temp_a = d + temp1
+					
+					e = temp_a % temp_b
+
+					d = c
+					c = b
+					b = a
+
+					temp_a = temp1 + temp2
+					
+					a = temp_a % temp_b
+				}
+
+				var values: List<int> = [a, b, c, d, e, f, g, h_t]
+				for i in (0, self.h.len()) {
+					var temp_a: int = self.h[i] + values[i]
+					var temp_b: int = pow(256, 4)
+					self.h[i] =  temp_a % temp_b
+				}
+			}
+		}
+	}
+}
+
+fn get_slice(a: List<int>, b: int) List<int> {
+	var new_list: List<int> = []
+
+	for i in (b, b+16) {
+		if a.len() <= i {
+			break
+		} 
+		
+		new_list.push(a[i])
+	}
+
+	return new_list
+}
+
+fn main() {
+	var k: List<int> = []
+	var h: List<int> = []
+
+	for i in (0, 1000) {
+		var a: SHA256 = {k, h}
+		a.init()
+		a.convert()
+	}
+}

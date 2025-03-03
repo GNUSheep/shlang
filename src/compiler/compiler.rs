@@ -573,10 +573,10 @@ impl Compiler {
     pub fn number(&mut self) {
         match self.parser.prev.token_type {
             TokenType::INT => {
-                let value: i64 = match self.parser.prev.value.iter().collect::<String>().parse() {
+                let value: i128 = match self.parser.prev.value.iter().collect::<String>().parse() {
                     Ok(v) => v,
                     Err(_) => {
-                        errors::conversion_error(self.cur_filepath.clone(), "Vec<char>", "i64");
+                        errors::conversion_error(self.cur_filepath.clone(), "Vec<char>", "i128");
                         std::process::exit(1);
                     },
                 };
@@ -749,7 +749,7 @@ impl Compiler {
                         std::process::exit(1);                            
                     }
                 };
-                
+
                 self.symbol_to_hold = pos as usize;
                 self.parser.consume(TokenType::LEFT_PAREN);
 
@@ -2133,6 +2133,7 @@ impl Compiler {
         if self.parser.symbols.len() > 1 && 
         self.parser.symbols[self.symbol_to_hold].symbol_type == TokenType::KEYWORD(Keywords::FN) &&
         self.parser.symbols[self.symbol_to_hold].output_type != TokenType::BOOL {
+            // println!("{:?}", self.parser.symbols[self.symbol_to_hold]);
             errors::error_message(self.cur_filepath.clone(), "COMPILING ERROR", format!("Expected to find BOOL but found {:?} {}:",
                 self.parser.symbols[self.symbol_to_hold].output_type,
                 self.parser.line,
@@ -2620,6 +2621,7 @@ impl Compiler {
                 break;
             }
             self.compile_line();
+            self.symbol_to_hold = 0;
             self.loop_info = LoopInfo::new();
         }
     }

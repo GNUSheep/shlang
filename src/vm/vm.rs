@@ -82,7 +82,7 @@ impl VM {
             match instruction.op {
                 OpCode::RETURN => {
                     if self.ip == 0 {
-                        println!("Stack: {:?}", self.frames[self.ip].stack);
+                        // println!("Stack: {:?}", self.frames[self.ip].stack);
                         break
                     }
 
@@ -395,7 +395,7 @@ impl VM {
 
                 let list_values_len = list_values.len();
 
-                self.frames[self.ip].stack.push(Value::Int(list_values_len as i64));
+                self.frames[self.ip].stack.push(Value::Int(list_values_len as i128));
             },
             OpCode::LIST_SORT => {
                 let instance_obj = match self.frames[self.ip].stack.pop().unwrap() {
@@ -610,7 +610,7 @@ impl VM {
             OpCode::MOD_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_float();
-                self.frames[self.ip].stack.push(Value::Float(b%a));
+                self.frames[self.ip].stack.push(Value::Float(b.rem_euclid(a)));
             },       
             OpCode::EQ_FLOAT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_float();
@@ -673,7 +673,7 @@ impl VM {
             OpCode::MOD_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();
                 let b = self.frames[self.ip].stack.pop().unwrap().get_int();
-                self.frames[self.ip].stack.push(Value::Int(b%a));
+                self.frames[self.ip].stack.push(Value::Int(b.rem_euclid(a)));
             },
             OpCode::EQ_INT => {
                 let a = self.frames[self.ip].stack.pop().unwrap().get_int();

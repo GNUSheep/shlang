@@ -56,7 +56,7 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
                 return Value::Int(0);
             }
 
-            match val.parse::<i64>() {
+            match val.parse::<i128>() {
                 Ok(v) => return Value::Int(v),
                 Err(e) => {
                     error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("Cannot CONV this string, because: {:?}", e));
@@ -65,7 +65,7 @@ pub fn conv_to_int(args: Vec<Value>) -> Value {
             }
         }
         Value::Float(val) => {
-            return Value::Int(val as i64);
+            return Value::Int(val as i128);
         }
         _ => {
             error_message("shlang/std/conv.rs".to_string(), "RUNTIME ERROR", format!("CONV not implemnted for this type: \"{:?}\"", args[0]));

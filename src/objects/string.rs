@@ -122,7 +122,7 @@ impl StringMethods {
     }
 
     fn len(args: Vec<Value>) -> Value {
-        Value::Int(args[0].get_string().len() as i64)
+        Value::Int(args[0].get_string().len() as i128)
     }
 
     fn to_upper(args: Vec<Value>) -> Value {
@@ -143,14 +143,14 @@ impl StringMethods {
 
         let vec_indices = str.match_indices(&args[1].get_string()).collect::<Vec<_>>();
 
-        Value::Int(vec_indices.len() as i64)
+        Value::Int(vec_indices.len() as i128)
     }
 
     fn find(args: Vec<Value>) -> Value {
         let str = args[0].get_string();
 
         match str.find(&args[1].get_string()) {
-            Some(val) => Value::Int(val as i64),
+            Some(val) => Value::Int(val as i128),
             None => Value::Int(-1),
         }
     }
