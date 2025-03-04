@@ -50,18 +50,18 @@ impl StringMethods {
 
     pub fn get_methods_rc() -> Vec<NativeFn> {
         vec![
-            NativeFn { name: "len".to_string(), function: StringMethods::len, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "toLower".to_string(), function: StringMethods::to_lower, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "toUpper".to_string(), function: StringMethods::to_upper, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "get".to_string(), function: StringMethods::get, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "count".to_string(), function: StringMethods::count, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "find".to_string(), function: StringMethods::find, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "isChar".to_string(), function: StringMethods::is_char, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "isDigit".to_string(), function: StringMethods::is_digit, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "trim".to_string(), function: StringMethods::trim, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "trimLeft".to_string(), function: StringMethods::trim_left, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "trimRight".to_string(), function: StringMethods::trim_right, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "replace".to_string(), function: StringMethods::replace, arg_count: 3, rc_counter: 1, index: 0 },
+            NativeFn { function: StringMethods::len, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::to_lower, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::to_upper, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::get, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: StringMethods::count, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: StringMethods::find, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: StringMethods::is_char, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::is_digit, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::trim, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::trim_left, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::trim_right, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: StringMethods::replace, arg_count: 3, rc_counter: 1 },
         ]
     }
 

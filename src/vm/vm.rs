@@ -73,7 +73,7 @@ impl VM {
             }
         }
 
-        Frame{chunk: self.rc.get_object(main_function_index).get_values()[0].get_chunk(), stack: vec![], ip: 0}
+        Frame{chunk: self.rc.get_object(main_function_index).get_value(0).get_chunk(), stack: vec![], ip: 0}
     }
 
     pub fn run(&mut self) {
@@ -121,14 +121,12 @@ impl VM {
             },
 
             OpCode::STRING_DEC(instance) => {
-                let heap_pos = self.rc.heap.len();
-                self.rc.push(Box::new(instance));
+                let heap_pos = self.rc.push(Box::new(instance));
                 self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
             },
             OpCode::STRING_DEC_VALUE(mut instance) => {
-                let heap_pos = self.rc.heap.len();
                 instance.fields_values.push(self.frames[self.ip].stack.pop().unwrap());
-                self.rc.push(Box::new(instance));
+                let heap_pos = self.rc.push(Box::new(instance));
                 self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
             },
 
@@ -139,8 +137,7 @@ impl VM {
                 instance.fields_values.reverse();
 
                 // Make it look for empty spaces
-                let heap_pos = self.rc.heap.len();
-                self.rc.push(Box::new(instance));
+                let heap_pos = self.rc.push(Box::new(instance));
                 self.frames[self.ip].stack.push(Value::InstanceRef(heap_pos));
             },
             OpCode::GET_INSTANCE_FIELD(field_pos) => {
@@ -152,7 +149,7 @@ impl VM {
                 };
                 instance_obj.dec_counter();
 
-                let field_value = instance_obj.get_values()[field_pos].clone();
+                let field_value = instance_obj.get_value(field_pos);
                 match field_value {
                     Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => self.rc.get_object(heap_pos).inc_counter(),
                     _ => {},
@@ -165,7 +162,7 @@ impl VM {
 
                 let (heap_pos, field) = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::InstanceRef(heap_pos) | Value::StringRef(heap_pos) => {
-                        (heap_pos, self.rc.get_object(heap_pos).get_values()[field_pos].clone())
+                        (heap_pos, self.rc.get_object(heap_pos).get_value(field_pos))
                     },
                     _ => panic!("Error, this type of value shoudnt be here"),
                 };
@@ -213,13 +210,13 @@ impl VM {
 
                 instance_obj.dec_counter();
 
-                if field_pos as usize >= instance_obj.get_values().len() {
+                if field_pos as usize >= instance_obj.get_values_len() {
                     errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
-                        format!("VM - List index out of range  {}/{} {}:", field_pos, instance_obj.get_values().len(), instruction.line));
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, instance_obj.get_values_len(), instruction.line));
                     std::process::exit(1);
                 }
 
-                let field_value = instance_obj.get_values()[field_pos].clone();
+                let field_value = instance_obj.get_value(field_pos);
 
                 match field_value {
                     Value::StringRef(heap_pos) | Value::InstanceRef(heap_pos) => self.rc.get_object(heap_pos).inc_counter(),
@@ -249,16 +246,16 @@ impl VM {
 
                 let (heap_pos, field_value) = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::InstanceRef(heap_pos) => {
-                        (heap_pos, self.rc.get_object(heap_pos).get_values()[field_pos].clone())
+                        (heap_pos, self.rc.get_object(heap_pos).get_value(field_pos))
                     }
                     _ => panic!("Error, this type of value shoudnt be here: SET LIST FIELD"),
                 };
 
                 self.rc.get_object(heap_pos).dec_counter();
 
-                if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
+                if field_pos >= self.rc.get_object(heap_pos).get_values_len() {
                     errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
-                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values_len(), instruction.line));
                     std::process::exit(1);
                 }
                 
@@ -330,9 +327,9 @@ impl VM {
                     },
                 };
 
-                if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
+                if field_pos >= self.rc.get_object(heap_pos).get_values_len() {
                     errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
-                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values_len(), instruction.line));
                     std::process::exit(1);
                 }
 
@@ -366,9 +363,9 @@ impl VM {
                     },
                 };
 
-                if field_pos >= self.rc.get_object(heap_pos).get_values().len() {
+                if field_pos >= self.rc.get_object(heap_pos).get_values_len() {
                     errors::error_message("shlang/vm/vm.rs".to_string(), "RUNTIME - VM ERROR", 
-                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values().len(), instruction.line));
+                        format!("VM - List index out of range  {}/{} {}:", field_pos, self.rc.get_object(heap_pos).get_values_len(), instruction.line));
                     std::process::exit(1);
                 }
 
@@ -428,7 +425,7 @@ impl VM {
             }
 
             OpCode::FUNCTION_CALL(index) => {
-                let chunk = self.rc.get_object(index).get_values()[0].clone();
+                let chunk = self.rc.get_object(index).get_value(0);
 
                 let mut stack: Vec<Value> = vec![];
 
@@ -438,12 +435,12 @@ impl VM {
                 }
                 stack.reverse();
 
-                self.frames.push(Frame { chunk: chunk.get_chunk().clone(), stack, ip: 0});
+                self.frames.push(Frame { chunk: chunk.get_chunk(), stack, ip: 0});
                 
                 self.ip += 1;
             },
             OpCode::NATIVE_FN_CALL(index) => {
-                let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
+                let native_fn = self.rc.get_object(index).get_value(0).get_fn();
 
                 let mut stack: Vec<Value> = vec![];
                 let len = self.frames[self.ip].stack.len() - 1;
@@ -454,7 +451,7 @@ impl VM {
                     let mut value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            value = self.rc.get_object(index).get_values()[0].clone()
+                            value = self.rc.get_object(index).get_value(0)
                         },
                         _ => {}
                     }
@@ -478,7 +475,7 @@ impl VM {
                 self.frames[self.ip].stack.push(output);
             },
             OpCode::IO_FN_CALL(index, arg_count) => {
-                let native_fn = self.rc.get_object(index).get_values()[0].get_fn();
+                let native_fn = self.rc.get_object(index).get_value(0).get_fn();
                 let mut stack: Vec<Value> = vec![];
                 let len: usize = if self.frames[self.ip].stack.len() != 0 {
                     self.frames[self.ip].stack.len() - 1
@@ -488,7 +485,7 @@ impl VM {
                     let mut value = self.frames[self.ip].stack[len - i].clone();
                     match value {
                         Value::StringRef(index) => {
-                            value = self.rc.get_object(index).get_values()[0].clone()
+                            value = self.rc.get_object(index).get_value(0)
                         },
                         _ => {}
                     }
@@ -515,8 +512,7 @@ impl VM {
                         let mut instance = StructInstance::new();
                         instance.fields_values.push(output);
 
-                        let heap_pos = self.rc.heap.len();
-                        self.rc.push(Box::new(instance));
+                        let heap_pos = self.rc.push(Box::new(instance));
                         self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
                     }
                     output => self.frames[self.ip].stack.push(output),                  
@@ -737,24 +733,21 @@ impl VM {
                 
                 let a = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::StringRef(pos) => {
-                        let fields = self.rc.get_object(pos).get_values();
-                        fields[0].clone()
+                        self.rc.get_object(pos).get_value(0)
                     },
                     _ => panic!("Ref not found"),
                 };
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::StringRef(pos) => {
-                        let fields = self.rc.get_object(pos).get_values();
-                        fields[0].clone()
+                        self.rc.get_object(pos).get_value(0)
                     },
                     _ => panic!("Ref not found")
                 };
     
-                let heap_pos = self.rc.heap.len();
                 let mut instance = StructInstance::new();
             
                 instance.fields_values.push(Value::String(b.get_string()+&a.get_string()));
-                self.rc.push(Box::new(instance));
+                let heap_pos = self.rc.push(Box::new(instance));
                 self.frames[self.ip].stack.push(Value::StringRef(heap_pos));
                 
             },
@@ -765,16 +758,14 @@ impl VM {
                 
                 let a = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::StringRef(pos) => {
-                        let fields = self.rc.get_object(pos).get_values();
-                        fields[0].clone()
+                        self.rc.get_object(pos).get_value(0)
                     },
                     _ => panic!("Ref not found"),
                 };
                
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::StringRef(pos) => {
-                        let fields = self.rc.get_object(pos).get_values();
-                        fields[0].clone()
+                        self.rc.get_object(pos).get_value(0)
                     },
                     _ => panic!("Ref not found")
                 };
@@ -788,16 +779,14 @@ impl VM {
                 
                 let a = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::StringRef(pos) => {
-                        let fields = self.rc.get_object(pos).get_values();
-                        fields[0].clone()
+                        self.rc.get_object(pos).get_value(0)
                     },
                     _ => panic!("Ref not found"),
                 };
                
                 let b = match self.frames[self.ip].stack.pop().unwrap() {
                     Value::StringRef(pos) => {
-                        let fields = self.rc.get_object(pos).get_values();
-                        fields[0].clone()
+                        self.rc.get_object(pos).get_value(0)
                     },
                     _ => panic!("Ref not found")
                 };

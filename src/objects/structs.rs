@@ -32,6 +32,14 @@ impl Object for Struct {
         self.rc_counter
     }
 
+    fn is_empty_obj(&self) -> bool {
+        false
+    }
+
+    fn get_value(&self, _pos: usize) -> Value {
+        Value::String(self.name.clone())
+    }
+
     fn get_values(&self) -> Vec<Value> {
         vec![Value::String(self.name.clone())]
     }
@@ -39,6 +47,10 @@ impl Object for Struct {
     fn set_value(&mut self, _pos: usize, _value: Value) {}
 
     fn replace_values(&mut self, _value: Vec<Value>) {}
+
+    fn get_values_len(&self) -> usize {
+        1
+    }
 
     fn get_arg_count(&self) -> usize {
         self.field_count
@@ -48,7 +60,7 @@ impl Object for Struct {
 impl Struct {
     pub fn new(name: String) -> Self {
         Self {
-            name: name,
+            name,
             locals: vec![],
             output_type: TokenType::KEYWORD(Keywords::NULL),
             field_count: 0,
@@ -78,6 +90,14 @@ impl Object for StructInstance {
         self.rc_counter
     }
 
+    fn is_empty_obj(&self) -> bool {
+        false
+    }
+
+    fn get_value(&self, pos: usize) -> Value {
+        self.fields_values[pos].clone()
+    }
+
     fn get_values(&self) -> Vec<Value> {
         self.fields_values.clone()
     }
@@ -88,6 +108,10 @@ impl Object for StructInstance {
 
     fn replace_values(&mut self, value: Vec<Value>) {
         self.fields_values = value;
+    }
+
+    fn get_values_len(&self) -> usize {
+        self.fields_values.len()
     }
 
     fn get_arg_count(&self) -> usize {

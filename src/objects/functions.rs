@@ -45,6 +45,14 @@ impl rc::Object for Function {
         self.rc_counter
     }
 
+    fn is_empty_obj(&self) -> bool {
+        false
+    }
+
+    fn get_value(&self, _pos: usize) -> Value {
+        Value::Chunk(self.chunk.clone())
+    }
+    
     fn get_values(&self) -> Vec<Value> {
         vec![Value::Chunk(self.chunk.clone())]
     }
@@ -52,6 +60,10 @@ impl rc::Object for Function {
     fn set_value(&mut self, _pos: usize, _value: Value) {}
 
     fn replace_values(&mut self, _value: Vec<Value>) {}
+
+    fn get_values_len(&self) -> usize {
+        1
+    }
 
     fn get_arg_count(&self) -> usize {
         self.arg_count
@@ -87,11 +99,9 @@ impl Function {
 }
 
 pub struct NativeFn {
-    pub name: String,
     pub function: fn(Vec<Value>) -> Value,
     pub arg_count: usize,
     pub rc_counter: usize,
-    pub index: usize,
 }
 
 impl NativeFn {
@@ -121,25 +131,25 @@ impl NativeFn {
 
     pub fn get_natives_fn() -> Vec<NativeFn> {
         vec![
-            NativeFn { name: "print".to_string(), function: std::print::print, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "println".to_string(), function: std::print::println, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "input".to_string(), function: std::input::input, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "conv".to_string(), function: std::conv::conv_to_int, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "convf".to_string(), function: std::conv::conv_to_float, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "convstr".to_string(), function: std::conv::conv_to_string, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "abs".to_string(), function: std::math::abs_int, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "absf".to_string(), function: std::math::abs_float, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "pow".to_string(), function: std::math::pow_int, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "powf".to_string(), function: std::math::pow_float, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "min".to_string(), function: std::math::min_int, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "minf".to_string(), function: std::math::min_float, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "max".to_string(), function: std::math::max_int, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "maxf".to_string(), function: std::math::max_float, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "sqrt".to_string(), function: std::math::sqrt_int, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "sqrtf".to_string(), function: std::math::sqrt_float, arg_count: 1, rc_counter: 1, index: 0 },
-            NativeFn { name: "roundf".to_string(), function: std::math::round, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "floorf".to_string(), function: std::math::floor, arg_count: 2, rc_counter: 1, index: 0 },
-            NativeFn { name: "ceilf".to_string(), function: std::math::ceil, arg_count: 2, rc_counter: 1, index: 0 },
+            NativeFn { function: std::print::print, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::print::println, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::input::input, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::conv::conv_to_int, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::conv::conv_to_float, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::conv::conv_to_string, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::math::abs_int, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::math::abs_float, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::math::pow_int, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::pow_float, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::min_int, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::min_float, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::max_int, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::max_float, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::sqrt_int, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::math::sqrt_float, arg_count: 1, rc_counter: 1 },
+            NativeFn { function: std::math::round, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::floor, arg_count: 2, rc_counter: 1 },
+            NativeFn { function: std::math::ceil, arg_count: 2, rc_counter: 1 },
         ]
     }
 }
@@ -157,6 +167,14 @@ impl rc::Object for NativeFn {
         self.rc_counter
     }
 
+    fn is_empty_obj(&self) -> bool {
+        false
+    }
+
+    fn get_value(&self, _pos: usize) -> Value {
+        Value::Fn(self.function)
+    }
+    
     fn get_values(&self) -> Vec<Value> {
         vec![Value::Fn(self.function)]
     }
@@ -164,6 +182,10 @@ impl rc::Object for NativeFn {
     fn set_value(&mut self, _pos: usize, _value: Value) {}
 
     fn replace_values(&mut self, _value: Vec<Value>) {}
+
+    fn get_values_len(&self) -> usize {
+        1
+    }
     
     fn get_arg_count(&self) -> usize {
         self.arg_count
